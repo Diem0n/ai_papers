@@ -17,18 +17,35 @@ nonisolated struct OllamaSummary: Codable, Sendable, Equatable {
 }
 
 enum OllamaServiceError: LocalizedError {
-    case unavailable
+    case connectionFailed(underlying: Error)
+    case serverError(statusCode: Int)
     case invalidResponse
-    case malformedContent
+    case malformedContent(raw: String)
 
     var errorDescription: String? {
         switch self {
-        case .unavailable:
+        case .connectionFailed:
             return "Ollama isn't running. Start Ollama and try again."
+        case .serverError(let statusCode):
+            return "Ollama returned an error (HTTP \(statusCode))."
         case .invalidResponse:
             return "Ollama returned an unexpected response."
         case .malformedContent:
             return "Ollama returned a response that couldn't be understood."
+        }
+    }
+
+    /// Full diagnostic detail, for logs — errorDescription stays user-facing and terse.
+    var debugDescription: String {
+        switch self {
+        case .connectionFailed(let underlying):
+            return "connectionFailed: \(underlying)"
+        case .serverError(let statusCode):
+            return "serverError: HTTP \(statusCode)"
+        case .invalidResponse:
+            return "invalidResponse"
+        case .malformedContent(let raw):
+            return "malformedContent: \(raw.prefix(300))"
         }
     }
 }
@@ -56,12 +73,21 @@ nonisolated final class OllamaService {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw OllamaServiceError.unavailable
+            // ponytail: single retry on a fresh connection — URLSession's keep-alive
+            // connection to local Ollama occasionally gets closed between requests;
+            // a real outage still fails on the retry.
+            do {
+                (data, response) = try await session.data(for: request)
+            } catch {
+                throw OllamaServiceError.connectionFailed(underlying: error)
+            }
         }
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw OllamaServiceError.unavailable
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OllamaServiceError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw OllamaServiceError.serverError(statusCode: httpResponse.statusCode)
         }
 
         guard let generateResponse = try? JSONDecoder().decode(GenerateResponse.self, from: data) else {
@@ -70,7 +96,7 @@ nonisolated final class OllamaService {
 
         guard let contentData = generateResponse.response.data(using: .utf8),
               let summary = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
-            throw OllamaServiceError.malformedContent
+            throw OllamaServiceError.malformedContent(raw: generateResponse.response)
         }
 
         return summary

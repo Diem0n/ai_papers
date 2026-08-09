@@ -2,8 +2,9 @@
 //  PaperService.swift
 //  AIPapers
 //
-//  Orchestrates the pipeline: arXiv -> dedup -> Ollama -> relevance -> SwiftData.
-//  Views call refresh() and render the result; they don't touch the stages directly.
+//  Orchestrates the pipeline: arXiv -> dedup -> relevance -> SwiftData.
+//  Summarization is on-demand (see summarize(_:)), not part of refresh —
+//  views call refresh() to sync the archive and summarize() when a paper is opened.
 //
 
 import Foundation
@@ -11,7 +12,6 @@ import os
 
 struct RefreshResult {
     let papersAdded: Int
-    let summariesFailed: Int
 }
 
 private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "PaperService")
@@ -35,34 +35,20 @@ final class PaperService {
     @discardableResult
     func refresh(onProgress: (String) -> Void = { _ in }) async throws -> RefreshResult {
         onProgress("Checking arXiv for new papers…")
-        let incoming = try await arxivService.fetchRecentPapers()
+        let incoming = try await arxivService.fetchRecentPapers(maxResults: AppSettings.maxPapersToFetch)
         let existingIDs = try repository.existingIDs()
         let newPapers = DeduplicationService.filterNewPapers(incoming, existingIDs: existingIDs)
 
         logger.notice("arXiv returned \(incoming.count, privacy: .public) papers, \(existingIDs.count, privacy: .public) already stored, \(newPapers.count, privacy: .public) new")
 
-        var summariesFailed = 0
-
-        for (index, arxivPaper) in newPapers.enumerated() {
-            onProgress("Summarizing paper \(index + 1) of \(newPapers.count)…")
-            var summary: OllamaSummary?
-            do {
-                summary = try await ollamaService.summarize(
-                    title: arxivPaper.title,
-                    abstractText: arxivPaper.abstractText
-                )
-            } catch {
-                summariesFailed += 1
-                logger.error("Ollama summarize failed for \(arxivPaper.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
-
+        let topics = AppSettings.topics
+        for arxivPaper in newPapers {
             let relevance = RelevanceService.score(
                 title: arxivPaper.title,
                 abstractText: arxivPaper.abstractText,
                 publishedAt: arxivPaper.publishedAt,
-                llmRelevance: summary?.engineeringRelevance
+                topics: topics
             )
-
             let paper = Paper(
                 id: arxivPaper.id,
                 title: arxivPaper.title,
@@ -70,9 +56,7 @@ final class PaperService {
                 abstractText: arxivPaper.abstractText,
                 url: arxivPaper.url,
                 publishedAt: arxivPaper.publishedAt,
-                summary: summary?.summary,
-                whyItMatters: summary?.whyItMatters,
-                category: summary?.topics.first ?? arxivPaper.primaryCategory,
+                category: arxivPaper.primaryCategory,
                 relevanceScore: relevance
             )
             repository.insert(paper)
@@ -81,9 +65,35 @@ final class PaperService {
         if !newPapers.isEmpty {
             onProgress("Saving \(newPapers.count) papers…")
             try repository.save()
-            logger.notice("Saved \(newPapers.count, privacy: .public) new papers (\(summariesFailed, privacy: .public) summaries failed)")
+            logger.notice("Saved \(newPapers.count, privacy: .public) new papers")
         }
 
-        return RefreshResult(papersAdded: newPapers.count, summariesFailed: summariesFailed)
+        return RefreshResult(papersAdded: newPapers.count)
+    }
+
+    /// Summarizes a single paper on demand — called when its detail view is opened.
+    @discardableResult
+    func summarize(_ paper: Paper) async -> Bool {
+        do {
+            let summary = try await ollamaService.summarize(title: paper.title, abstractText: paper.abstractText)
+            paper.summary = summary.summary
+            paper.whyItMatters = summary.whyItMatters
+            paper.category = summary.topics.first ?? paper.category
+            paper.relevanceScore = RelevanceService.score(
+                title: paper.title,
+                abstractText: paper.abstractText,
+                publishedAt: paper.publishedAt,
+                llmRelevance: summary.engineeringRelevance,
+                topics: AppSettings.topics
+            )
+            try? repository.save()
+            return true
+        } catch let error as OllamaServiceError {
+            logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(error.debugDescription, privacy: .public)")
+            return false
+        } catch {
+            logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
+            return false
+        }
     }
 }
