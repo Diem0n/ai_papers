@@ -57,7 +57,7 @@ struct DashboardView: View {
                         PaperRowView(paper: paper).tag(paper)
                     }
                 }
-                .navigationSplitViewColumnWidth(min: 360, ideal: 420)
+                .navigationSplitViewColumnWidth(min: 360, ideal: 560)
             }
         }
         .navigationTitle("Dashboard")
