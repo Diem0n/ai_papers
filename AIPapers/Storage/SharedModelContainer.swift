@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftData
+import SQLite3
 
 enum SharedModelContainer {
     static let appGroupID = "group.com.Diem0n.AIPapers"
@@ -20,7 +21,23 @@ enum SharedModelContainer {
             return try! ModelContainer(for: Paper.self)
         }
         let storeURL = groupURL.appendingPathComponent("AIPapers.sqlite")
+        StoreMigration.addColumnsIfNeeded(at: storeURL)
         let config = ModelConfiguration(schema: Schema([Paper.self]), url: storeURL)
         return try! ModelContainer(for: Paper.self, configurations: config)
+    }
+}
+
+/// SwiftData doesn't auto-migrate a custom-URL store when a stored property is
+/// added — it crashes with an uncaught NSException Swift can't catch. Add any
+/// missing columns via raw SQLite (ALTER TABLE preserves existing rows) before
+/// SwiftData ever opens the file, so the crash path is never reached.
+enum StoreMigration {
+    static func addColumnsIfNeeded(at storeURL: URL) {
+        guard FileManager.default.fileExists(atPath: storeURL.path) else { return }
+        var db: OpaquePointer?
+        guard sqlite3_open(storeURL.path, &db) == SQLITE_OK else { return }
+        defer { sqlite3_close(db) }
+        // Fails harmlessly (and is ignored) if the column already exists.
+        sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZEMBEDDING BLOB", nil, nil, nil)
     }
 }
