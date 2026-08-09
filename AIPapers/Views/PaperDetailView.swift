@@ -2,8 +2,8 @@
 //  PaperDetailView.swift
 //  AIPapers
 //
-//  Summaries are generated on demand — refresh() only ingests metadata,
-//  so Ollama is called here, the first time a paper is actually opened.
+//  Summaries and embeddings are generated on demand — refresh() only ingests
+//  metadata, so Ollama is called here, the first time a paper is opened.
 //
 
 import SwiftUI
@@ -12,9 +12,11 @@ import SwiftData
 struct PaperDetailView: View {
     @Bindable var paper: Paper
     @Environment(\.modelContext) private var modelContext
+    var onSelectRelated: (Paper) -> Void = { _ in }
 
     @State private var isSummarizing = false
     @State private var summarizeFailed = false
+    @State private var relatedPapers: [(paper: Paper, score: Double)] = []
 
     var body: some View {
         ScrollView {
@@ -43,6 +45,10 @@ struct PaperDetailView: View {
 
                 section("Abstract", text: paper.abstractText)
 
+                if !relatedPapers.isEmpty {
+                    relatedSection
+                }
+
                 HStack {
                     if let url = URL(string: paper.url) {
                         Link(destination: url) {
@@ -66,8 +72,10 @@ struct PaperDetailView: View {
         .navigationTitle(paper.title)
         .task(id: paper.id) {
             paper.isRead = true
-            guard paper.summary == nil else { return }
-            await generateSummary()
+            if paper.summary == nil {
+                await generateSummary()
+            }
+            await updateRelatedPapers()
         }
     }
 
@@ -95,6 +103,27 @@ struct PaperDetailView: View {
         }
     }
 
+    private var relatedSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Related Papers").font(.headline)
+            ForEach(relatedPapers, id: \.paper.id) { related in
+                Button {
+                    onSelectRelated(related.paper)
+                } label: {
+                    HStack {
+                        Text(related.paper.title)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(Int(related.score * 100))%")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+            }
+        }
+    }
+
     private func generateSummary() async {
         isSummarizing = true
         summarizeFailed = false
@@ -102,6 +131,12 @@ struct PaperDetailView: View {
         let success = await service.summarize(paper)
         summarizeFailed = !success
         isSummarizing = false
+    }
+
+    private func updateRelatedPapers() async {
+        let service = PaperService(repository: PaperRepository(context: modelContext))
+        await service.embedIfNeeded(paper)
+        relatedPapers = (try? service.relatedPapers(to: paper)) ?? []
     }
 
     private func section(_ title: String, text: String) -> some View {

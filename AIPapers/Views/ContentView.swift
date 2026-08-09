@@ -45,7 +45,7 @@ struct ContentView: View {
             }
         } detail: {
             if let selectedPaper {
-                PaperDetailView(paper: selectedPaper)
+                PaperDetailView(paper: selectedPaper, onSelectRelated: { self.selectedPaper = $0 })
             } else {
                 ContentUnavailableView("Select a paper", systemImage: "doc.text")
             }

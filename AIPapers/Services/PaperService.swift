@@ -21,16 +21,19 @@ private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "PaperSe
 final class PaperService {
     private let arxivService: ArxivService
     private let ollamaService: OllamaService
+    private let embeddingService: EmbeddingService
     private let repository: PaperRepository
 
     init(
         repository: PaperRepository,
         arxivService: ArxivService = ArxivService(),
-        ollamaService: OllamaService = OllamaService()
+        ollamaService: OllamaService = OllamaService(),
+        embeddingService: EmbeddingService = EmbeddingService()
     ) {
         self.repository = repository
         self.arxivService = arxivService
         self.ollamaService = ollamaService
+        self.embeddingService = embeddingService
     }
 
     @discardableResult
@@ -98,5 +101,24 @@ final class PaperService {
             logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
             return false
         }
+    }
+
+    /// Generates a semantic embedding on demand — called when a paper's detail
+    /// view is opened, same trigger as summarize(). No-op if already embedded.
+    func embedIfNeeded(_ paper: Paper) async {
+        guard paper.embedding == nil else { return }
+        do {
+            let text = "\(paper.title)\n\(paper.abstractText)"
+            paper.embedding = try await embeddingService.embed(text: text)
+            try? repository.save()
+        } catch {
+            logger.error("Embedding failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Papers most similar to `paper` among everything already embedded.
+    func relatedPapers(to paper: Paper, limit: Int = 3) throws -> [(paper: Paper, score: Double)] {
+        let allPapers = try repository.allPapers()
+        return SimilarityService.mostSimilar(to: paper, among: allPapers, limit: limit)
     }
 }
