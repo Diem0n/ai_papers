@@ -2,8 +2,6 @@
 //  AIPapersWidgetBundle.swift
 //  AIPapersWidget
 //
-//  Created by Talha on 09/08/2026.
-//
 
 import WidgetKit
 import SwiftUI
@@ -12,6 +10,5 @@ import SwiftUI
 struct AIPapersWidgetBundle: WidgetBundle {
     var body: some Widget {
         AIPapersWidget()
-        AIPapersWidgetControl()
     }
 }

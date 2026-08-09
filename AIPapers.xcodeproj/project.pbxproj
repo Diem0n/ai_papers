@@ -6,14 +6,66 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BCF76B0E3028AA6200A51C26 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BCF76B0D3028AA6200A51C26 /* WidgetKit.framework */; };
+		BCF76B103028AA6200A51C26 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BCF76B0F3028AA6200A51C26 /* SwiftUI.framework */; };
+		BCF76B1F3028AA6300A51C26 /* AIPapersWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BCF76B0B3028AA6200A51C26 /* AIPapersWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BCF76B1D3028AA6300A51C26 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BCC4BAE730288CCC00D4BCE3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BCF76B0A3028AA6200A51C26;
+			remoteInfo = AIPapersWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BCF76B203028AA6300A51C26 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BCF76B1F3028AA6300A51C26 /* AIPapersWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		BCC4BAEF30288CCC00D4BCE3 /* AIPapers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIPapers.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BCF76B0B3028AA6200A51C26 /* AIPapersWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIPapersWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BCF76B0D3028AA6200A51C26 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		BCF76B0F3028AA6200A51C26 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		BCF76B253028AA9F00A51C26 /* AIPapersWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AIPapersWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BCF76B233028AA6300A51C26 /* Exceptions for "AIPapersWidget" folder in "AIPapersWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BCF76B0A3028AA6200A51C26 /* AIPapersWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BCC4BAF130288CCC00D4BCE3 /* AIPapers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AIPapers;
+			sourceTree = "<group>";
+		};
+		BCF76B113028AA6200A51C26 /* AIPapersWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BCF76B233028AA6300A51C26 /* Exceptions for "AIPapersWidget" folder in "AIPapersWidgetExtension" target */,
+			);
+			path = AIPapersWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -26,13 +78,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BCF76B083028AA6200A51C26 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BCF76B103028AA6200A51C26 /* SwiftUI.framework in Frameworks */,
+				BCF76B0E3028AA6200A51C26 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		BCC4BAE630288CCC00D4BCE3 = {
 			isa = PBXGroup;
 			children = (
+				BCF76B253028AA9F00A51C26 /* AIPapersWidgetExtension.entitlements */,
 				BCC4BAF130288CCC00D4BCE3 /* AIPapers */,
+				BCF76B113028AA6200A51C26 /* AIPapersWidget */,
+				BCF76B0C3028AA6200A51C26 /* Frameworks */,
 				BCC4BAF030288CCC00D4BCE3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +105,18 @@
 			isa = PBXGroup;
 			children = (
 				BCC4BAEF30288CCC00D4BCE3 /* AIPapers.app */,
+				BCF76B0B3028AA6200A51C26 /* AIPapersWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		BCF76B0C3028AA6200A51C26 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BCF76B0D3028AA6200A51C26 /* WidgetKit.framework */,
+				BCF76B0F3028AA6200A51C26 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -55,10 +129,12 @@
 				BCC4BAEB30288CCC00D4BCE3 /* Sources */,
 				BCC4BAEC30288CCC00D4BCE3 /* Frameworks */,
 				BCC4BAED30288CCC00D4BCE3 /* Resources */,
+				BCF76B203028AA6300A51C26 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				BCF76B1E3028AA6300A51C26 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BCC4BAF130288CCC00D4BCE3 /* AIPapers */,
@@ -70,6 +146,28 @@
 			productReference = BCC4BAEF30288CCC00D4BCE3 /* AIPapers.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BCF76B0A3028AA6200A51C26 /* AIPapersWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BCF76B243028AA6300A51C26 /* Build configuration list for PBXNativeTarget "AIPapersWidgetExtension" */;
+			buildPhases = (
+				BCF76B073028AA6200A51C26 /* Sources */,
+				BCF76B083028AA6200A51C26 /* Frameworks */,
+				BCF76B093028AA6200A51C26 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BCF76B113028AA6200A51C26 /* AIPapersWidget */,
+			);
+			name = AIPapersWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = AIPapersWidgetExtension;
+			productReference = BCF76B0B3028AA6200A51C26 /* AIPapersWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -77,11 +175,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2650;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					BCC4BAEE30288CCC00D4BCE3 = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					BCF76B0A3028AA6200A51C26 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 				};
 			};
@@ -100,12 +201,20 @@
 			projectRoot = "";
 			targets = (
 				BCC4BAEE30288CCC00D4BCE3 /* AIPapers */,
+				BCF76B0A3028AA6200A51C26 /* AIPapersWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		BCC4BAED30288CCC00D4BCE3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BCF76B093028AA6200A51C26 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +231,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BCF76B073028AA6200A51C26 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BCF76B1E3028AA6300A51C26 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BCF76B0A3028AA6200A51C26 /* AIPapersWidgetExtension */;
+			targetProxy = BCF76B1D3028AA6300A51C26 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		BCC4BAF830288CCD00D4BCE3 /* Debug */ = {
@@ -311,6 +435,74 @@
 			};
 			name = Release;
 		};
+		BCF76B213028AA6300A51C26 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AIPapersWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4B5R9YYJ5L;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AIPapersWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AIPapersWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Diem0n.AIPapers.AIPapersWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		BCF76B223028AA6300A51C26 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = AIPapersWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4B5R9YYJ5L;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AIPapersWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AIPapersWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Diem0n.AIPapers.AIPapersWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -328,6 +520,15 @@
 			buildConfigurations = (
 				BCC4BAFB30288CCD00D4BCE3 /* Debug */,
 				BCC4BAFC30288CCD00D4BCE3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BCF76B243028AA6300A51C26 /* Build configuration list for PBXNativeTarget "AIPapersWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BCF76B213028AA6300A51C26 /* Debug */,
+				BCF76B223028AA6300A51C26 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
