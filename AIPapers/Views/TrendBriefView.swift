@@ -44,6 +44,6 @@ struct TrendBriefView: View {
             }
         }
         .navigationTitle("Trend Brief")
-        .onAppear { brief = TrendBriefStore.load() }
+        .onAppear { brief = TrendBriefStore.loadLatest() }
     }
 }

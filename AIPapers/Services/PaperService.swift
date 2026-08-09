@@ -99,7 +99,7 @@ final class PaperService {
     /// day — this reasons over ~15 papers of context, much heavier than a
     /// per-paper call, so it shouldn't re-run on every manual refresh click.
     private func generateTrendBriefIfNeeded(onProgress: (String) -> Void) async {
-        if let existing = TrendBriefStore.load(), Calendar.current.isDateInToday(existing.day) {
+        if let existing = TrendBriefStore.loadLatest(), Calendar.current.isDateInToday(existing.day) {
             return
         }
         guard let allPapers = try? repository.allPapers(), !allPapers.isEmpty else { return }

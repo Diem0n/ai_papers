@@ -100,7 +100,7 @@ struct Provider: TimelineProvider {
 
         logger.notice("Widget timeline: \(todaysPapers.count, privacy: .public) today, \(papersToShow.count, privacy: .public) shown")
 
-        let brief = TrendBriefStore.load()
+        let brief = TrendBriefStore.loadLatest()
         let trendHeadline = (brief.map { Calendar.current.isDateInToday($0.day) } ?? false) ? brief?.content : nil
 
         return PapersEntry(
