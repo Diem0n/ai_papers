@@ -16,9 +16,11 @@ struct TrendBrief: Codable {
 }
 
 enum TrendBriefStore {
+    private static let appGroupID = "group.com.Diem0n.AIPapers"
+
     private static var fileURL: URL? {
         FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: SharedModelContainer.appGroupID)?
+            .containerURL(forSecurityApplicationGroupIdentifier: appGroupID)?
             .appendingPathComponent("TrendBriefHistory.json")
     }
 

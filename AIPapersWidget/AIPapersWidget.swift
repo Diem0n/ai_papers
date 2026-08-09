@@ -2,293 +2,99 @@
 //  AIPapersWidget.swift
 //  AIPapersWidget
 //
-//  Reads from the same App Group store the main app writes to — refresh()
-//  never runs inside the widget, it only ever renders data prepared elsewhere.
+//  Shows the daily industry trend brief, not paper titles. WidgetKit has no
+//  scrolling — this shows as much text as the size fits, and taps through to
+//  TrendBriefView for the full, actually-scrollable read.
 //
 
 import WidgetKit
 import SwiftUI
-import SwiftData
 import os
 
 private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "Widget")
 
-struct PaperSummaryInfo: Identifiable {
-    let id: String
-    let title: String
-    let category: String?
-    let summary: String?
-    let whyItMatters: String?
-
-    init(_ paper: Paper) {
-        id = paper.id
-        title = paper.title
-        category = paper.category
-        summary = paper.summary
-        whyItMatters = paper.whyItMatters
-    }
-
-    init(id: String, title: String, category: String?, summary: String?, whyItMatters: String?) {
-        self.id = id
-        self.title = title
-        self.category = category
-        self.summary = summary
-        self.whyItMatters = whyItMatters
-    }
-}
-
-struct PapersEntry: TimelineEntry {
+struct TrendEntry: TimelineEntry {
     let date: Date
-    let papers: [PaperSummaryInfo]
-    let newTodayCount: Int
-    let trendHeadline: String?
+    let brief: TrendBrief?
 
-    static let sample = PapersEntry(
+    static let sample = TrendEntry(
         date: .now,
-        papers: [
-            PaperSummaryInfo(id: "1", title: "Efficient Sparse Attention via Dynamic Routing", category: "LLM", summary: "A routing mechanism that cuts attention cost to near-linear for long contexts.", whyItMatters: "Cheaper long-context inference without a quality hit."),
-            PaperSummaryInfo(id: "2", title: "Retrieval-Augmented Agents for Tool Use", category: "Agents", summary: "Agents that retrieve tool specs on demand instead of holding them all in context.", whyItMatters: "Scales tool-use agents past small, fixed toolkits."),
-        ],
-        newTodayCount: 5,
-        trendHeadline: "Efficiency and tool-use agents dominate this week, with multiple papers tackling long-context cost."
+        brief: TrendBrief(
+            day: .now,
+            generatedAt: .now,
+            content: "Efficiency and tool-use agents dominate this week, with multiple papers tackling long-context inference cost through sparse attention and dynamic routing. A second cluster focuses on retrieval-augmented agents that fetch tool specifications on demand rather than holding them all in context, suggesting the field is moving toward more composable, memory-efficient agent architectures rather than simply scaling context windows.",
+            paperCount: 15
+        )
     )
 }
 
-struct Provider: TimelineProvider {
-    func placeholder(in context: Context) -> PapersEntry {
+struct TrendProvider: TimelineProvider {
+    func placeholder(in context: Context) -> TrendEntry {
         .sample
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (PapersEntry) -> Void) {
+    func getSnapshot(in context: Context, completion: @escaping (TrendEntry) -> Void) {
         completion(context.isPreview ? .sample : fetchEntry())
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<PapersEntry>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<TrendEntry>) -> Void) {
         let entry = fetchEntry()
         let nextRefresh = Calendar.current.date(byAdding: .hour, value: 4, to: .now) ?? .now.addingTimeInterval(4 * 3600)
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
     }
 
-    private func fetchEntry() -> PapersEntry {
-        guard let container = SharedModelContainer.make() else {
-            logger.error("Could not open the shared App Group container — check the App Group entitlement.")
-            return PapersEntry(date: .now, papers: [], newTodayCount: 0, trendHeadline: nil)
-        }
-        let context = ModelContext(container)
-        let startOfDay = Calendar.current.startOfDay(for: .now)
-
-        let todayDescriptor = FetchDescriptor<Paper>(
-            predicate: #Predicate { $0.discoveredAt >= startOfDay },
-            sortBy: [SortDescriptor(\.relevanceScore, order: .reverse)]
-        )
-        let todaysPapers: [Paper]
-        do {
-            todaysPapers = try context.fetch(todayDescriptor)
-        } catch {
-            logger.error("Widget fetch failed: \(String(describing: error), privacy: .public)")
-            todaysPapers = []
-        }
-
-        let papersToShow: [Paper]
-        if todaysPapers.isEmpty {
-            var fallback = FetchDescriptor<Paper>(sortBy: [SortDescriptor(\.relevanceScore, order: .reverse)])
-            fallback.fetchLimit = 5
-            papersToShow = (try? context.fetch(fallback)) ?? []
-        } else {
-            papersToShow = todaysPapers
-        }
-
-        logger.notice("Widget timeline: \(todaysPapers.count, privacy: .public) today, \(papersToShow.count, privacy: .public) shown")
-
-        let brief = TrendBriefStore.loadLatest()
-        let trendHeadline = (brief.map { Calendar.current.isDateInToday($0.day) } ?? false) ? brief?.content : nil
-
-        return PapersEntry(
-            date: .now,
-            papers: papersToShow.prefix(5).map(PaperSummaryInfo.init),
-            newTodayCount: todaysPapers.count,
-            trendHeadline: trendHeadline
-        )
+    private func fetchEntry() -> TrendEntry {
+        let latest = TrendBriefStore.loadLatest()
+        let todaysBrief = latest.flatMap { Calendar.current.isDateInToday($0.day) ? $0 : nil }
+        logger.notice("Widget timeline: brief present = \(todaysBrief != nil, privacy: .public)")
+        return TrendEntry(date: .now, brief: todaysBrief)
     }
-}
-
-func paperURL(_ id: String) -> URL {
-    URL(string: "aipapers://paper/\(id)")!
 }
 
 let trendURL = URL(string: "aipapers://trend")!
 
 struct AIPapersWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
-    let entry: PapersEntry
+    let entry: TrendEntry
 
     var body: some View {
-        switch family {
-        case .systemMedium:
-            MediumWidgetView(entry: entry)
-        case .systemLarge, .systemExtraLarge:
-            LargeWidgetView(entry: entry)
-        default:
-            SmallWidgetView(entry: entry)
-        }
-    }
-}
+        Link(destination: trendURL) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Industry Trend", systemImage: "text.book.closed")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-private struct SmallWidgetView: View {
-    let entry: PapersEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(entry.newTodayCount) new today")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            if let top = entry.papers.first {
-                Text(top.title)
-                    .font(.headline)
-                    .lineLimit(3)
-                if let summary = top.summary {
-                    Text(summary)
+                if let brief = entry.brief {
+                    Text(brief.content)
+                        .font(.caption)
+                        .lineLimit(lineLimit)
+                    Spacer(minLength: 0)
+                    Text("Based on \(brief.paperCount) papers — tap to read in full")
                         .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    Spacer()
+                    Text("No brief yet today")
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(3)
+                    Spacer()
                 }
-            } else {
-                Spacer()
-                Text("No papers yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 0)
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .containerBackground(.fill.tertiary, for: .widget)
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(.fill.tertiary, for: .widget)
-        .widgetURL(entry.papers.first.map { paperURL($0.id) })
+        .buttonStyle(.plain)
     }
-}
 
-private struct MediumWidgetView: View {
-    let entry: PapersEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("\(entry.newTodayCount) new papers today")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if entry.papers.isEmpty {
-                Spacer()
-                Text("No papers yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                ForEach(entry.papers.prefix(3)) { paper in
-                    Link(destination: paperURL(paper.id)) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
-                                Text(paper.title)
-                                    .font(.subheadline.weight(.medium))
-                                    .lineLimit(1)
-                                if let category = paper.category {
-                                    Text(category)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 1)
-                                        .background(.tertiary, in: Capsule())
-                                }
-                            }
-                            if let summary = paper.summary {
-                                Text(summary)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            Spacer(minLength: 0)
+    private var lineLimit: Int {
+        switch family {
+        case .systemSmall: 5
+        case .systemMedium: 5
+        case .systemLarge: 15
+        case .systemExtraLarge: 24
+        default: 5
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(.fill.tertiary, for: .widget)
-    }
-}
-
-private struct LargeWidgetView: View {
-    let entry: PapersEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Today's AI Digest — \(entry.newTodayCount) new")
-                .font(.headline)
-
-            if let trendHeadline = entry.trendHeadline {
-                Link(destination: trendURL) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label("Industry Trend", systemImage: "text.book.closed")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(trendHeadline)
-                            .font(.caption)
-                            .lineLimit(2)
-                    }
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.tertiary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-            }
-
-            if entry.papers.isEmpty {
-                Spacer()
-                Text("No papers yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                let visibleCount = entry.trendHeadline == nil ? 4 : 3
-                ForEach(Array(entry.papers.prefix(visibleCount).enumerated()), id: \.element.id) { index, paper in
-                    Link(destination: paperURL(paper.id)) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 4) {
-                                Text(paper.title)
-                                    .font(.subheadline.weight(.medium))
-                                    .lineLimit(2)
-                                if let category = paper.category {
-                                    Text(category)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 1)
-                                        .background(.tertiary, in: Capsule())
-                                }
-                            }
-                            if let summary = paper.summary {
-                                Text(summary)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                            if let whyItMatters = paper.whyItMatters {
-                                Text("Why it matters: \(whyItMatters)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                    .lineLimit(2)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    if index < min(entry.papers.count, visibleCount) - 1 {
-                        Divider()
-                    }
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
@@ -296,29 +102,29 @@ struct AIPapersWidget: Widget {
     let kind: String = "AIPapersWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+        StaticConfiguration(kind: kind, provider: TrendProvider()) { entry in
             AIPapersWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("AI Papers Digest")
-        .description("Today's top AI engineering papers.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .configurationDisplayName("AI Papers Trend Brief")
+        .description("Where AI engineering is heading, synthesized daily from your papers.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
     }
 }
 
 #Preview(as: .systemSmall) {
     AIPapersWidget()
 } timeline: {
-    PapersEntry.sample
+    TrendEntry.sample
 }
 
 #Preview(as: .systemMedium) {
     AIPapersWidget()
 } timeline: {
-    PapersEntry.sample
+    TrendEntry.sample
 }
 
 #Preview(as: .systemLarge) {
     AIPapersWidget()
 } timeline: {
-    PapersEntry.sample
+    TrendEntry.sample
 }

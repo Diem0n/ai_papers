@@ -10,6 +10,5 @@ import SwiftUI
 struct AIPapersWidgetBundle: WidgetBundle {
     var body: some Widget {
         AIPapersWidget()
-        AIPapersTrendWidget()
     }
 }
