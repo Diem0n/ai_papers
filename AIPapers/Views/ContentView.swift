@@ -28,8 +28,10 @@ struct ContentView: View {
             List(SidebarItem.allCases, selection: $selection) { item in
                 Label(item.rawValue, systemImage: item.systemImage)
                     .tag(item)
+                    .padding(.vertical, 4)
             }
             .navigationTitle("AI Papers")
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } content: {
             switch selection {
             case .dashboard:
@@ -46,6 +48,7 @@ struct ContentView: View {
                 ContentUnavailableView("Select a paper", systemImage: "doc.text")
             }
         }
+        .navigationSplitViewStyle(.balanced)
     }
 }
 

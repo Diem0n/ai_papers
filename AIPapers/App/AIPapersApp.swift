@@ -15,5 +15,6 @@ struct AIPapersApp: App {
             ContentView()
         }
         .modelContainer(for: Paper.self)
+        .defaultSize(width: 1200, height: 780)
     }
 }

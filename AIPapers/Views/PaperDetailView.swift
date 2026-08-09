@@ -10,7 +10,7 @@ struct PaperDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
                 Text(paper.title)
                     .font(.title2)
                     .bold()
@@ -62,16 +62,18 @@ struct PaperDetailView: View {
                     .toggleStyle(.button)
                 }
             }
-            .padding()
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(paper.title)
         .onAppear { paper.isRead = true }
     }
 
     private func section(_ title: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.headline)
             Text(text)
+                .lineSpacing(3)
         }
     }
 }

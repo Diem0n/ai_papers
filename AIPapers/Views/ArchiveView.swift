@@ -34,6 +34,7 @@ struct ArchiveView: View {
                         PaperRowView(paper: paper).tag(paper)
                     }
                 }
+                .navigationSplitViewColumnWidth(min: 360, ideal: 420)
             }
         }
         .navigationTitle("Archive")

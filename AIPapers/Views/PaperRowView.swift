@@ -9,9 +9,9 @@ struct PaperRowView: View {
     let paper: Paper
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
                     Text(paper.title)
                         .font(.headline)
                         .lineLimit(2)
@@ -28,19 +28,21 @@ struct PaperRowView: View {
                 if let category = paper.category {
                     Text(category)
                         .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                         .background(.tertiary, in: Capsule())
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             if !paper.isRead {
                 Circle()
                     .fill(.tint)
                     .frame(width: 8, height: 8)
+                    .padding(.top, 6)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 4)
         .opacity(paper.isRead ? 0.65 : 1.0)
     }
 }
