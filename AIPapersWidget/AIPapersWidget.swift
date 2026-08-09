@@ -41,6 +41,7 @@ struct PapersEntry: TimelineEntry {
     let date: Date
     let papers: [PaperSummaryInfo]
     let newTodayCount: Int
+    let trendHeadline: String?
 
     static let sample = PapersEntry(
         date: .now,
@@ -48,7 +49,8 @@ struct PapersEntry: TimelineEntry {
             PaperSummaryInfo(id: "1", title: "Efficient Sparse Attention via Dynamic Routing", category: "LLM", summary: "A routing mechanism that cuts attention cost to near-linear for long contexts.", whyItMatters: "Cheaper long-context inference without a quality hit."),
             PaperSummaryInfo(id: "2", title: "Retrieval-Augmented Agents for Tool Use", category: "Agents", summary: "Agents that retrieve tool specs on demand instead of holding them all in context.", whyItMatters: "Scales tool-use agents past small, fixed toolkits."),
         ],
-        newTodayCount: 5
+        newTodayCount: 5,
+        trendHeadline: "Efficiency and tool-use agents dominate this week, with multiple papers tackling long-context cost."
     )
 }
 
@@ -70,7 +72,7 @@ struct Provider: TimelineProvider {
     private func fetchEntry() -> PapersEntry {
         guard let container = SharedModelContainer.make() else {
             logger.error("Could not open the shared App Group container — check the App Group entitlement.")
-            return PapersEntry(date: .now, papers: [], newTodayCount: 0)
+            return PapersEntry(date: .now, papers: [], newTodayCount: 0, trendHeadline: nil)
         }
         let context = ModelContext(container)
         let startOfDay = Calendar.current.startOfDay(for: .now)
@@ -98,10 +100,14 @@ struct Provider: TimelineProvider {
 
         logger.notice("Widget timeline: \(todaysPapers.count, privacy: .public) today, \(papersToShow.count, privacy: .public) shown")
 
+        let brief = TrendBriefStore.load()
+        let trendHeadline = (brief.map { Calendar.current.isDateInToday($0.day) } ?? false) ? brief?.content : nil
+
         return PapersEntry(
             date: .now,
             papers: papersToShow.prefix(5).map(PaperSummaryInfo.init),
-            newTodayCount: todaysPapers.count
+            newTodayCount: todaysPapers.count,
+            trendHeadline: trendHeadline
         )
     }
 }
@@ -109,6 +115,8 @@ struct Provider: TimelineProvider {
 func paperURL(_ id: String) -> URL {
     URL(string: "aipapers://paper/\(id)")!
 }
+
+let trendURL = URL(string: "aipapers://trend")!
 
 struct AIPapersWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
@@ -215,6 +223,24 @@ private struct LargeWidgetView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Today's AI Digest — \(entry.newTodayCount) new")
                 .font(.headline)
+
+            if let trendHeadline = entry.trendHeadline {
+                Link(destination: trendURL) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("Industry Trend", systemImage: "text.book.closed")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(trendHeadline)
+                            .font(.caption)
+                            .lineLimit(2)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.tertiary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+
             if entry.papers.isEmpty {
                 Spacer()
                 Text("No papers yet")
@@ -222,7 +248,8 @@ private struct LargeWidgetView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
             } else {
-                ForEach(Array(entry.papers.prefix(4).enumerated()), id: \.element.id) { index, paper in
+                let visibleCount = entry.trendHeadline == nil ? 4 : 3
+                ForEach(Array(entry.papers.prefix(visibleCount).enumerated()), id: \.element.id) { index, paper in
                     Link(destination: paperURL(paper.id)) {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 4) {
@@ -252,7 +279,7 @@ private struct LargeWidgetView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    if index < min(entry.papers.count, 4) - 1 {
+                    if index < min(entry.papers.count, visibleCount) - 1 {
                         Divider()
                     }
                 }
