@@ -20,6 +20,8 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var router: AppRouter
     @State private var selection: SidebarItem? = .dashboard
     @State private var selectedPaper: Paper?
 
@@ -49,6 +51,16 @@ struct ContentView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .onChange(of: router.pendingPaperID) { _, paperID in
+            guard let paperID else { return }
+            openPaper(id: paperID)
+            router.pendingPaperID = nil
+        }
+    }
+
+    private func openPaper(id: String) {
+        let descriptor = FetchDescriptor<Paper>(predicate: #Predicate { $0.id == id })
+        selectedPaper = try? modelContext.fetch(descriptor).first
     }
 }
 

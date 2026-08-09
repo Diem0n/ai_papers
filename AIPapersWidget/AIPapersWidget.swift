@@ -9,6 +9,9 @@
 import WidgetKit
 import SwiftUI
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "Widget")
 
 struct PaperSummaryInfo: Identifiable {
     let id: String
@@ -66,6 +69,7 @@ struct Provider: TimelineProvider {
 
     private func fetchEntry() -> PapersEntry {
         guard let container = SharedModelContainer.make() else {
+            logger.error("Could not open the shared App Group container — check the App Group entitlement.")
             return PapersEntry(date: .now, papers: [], newTodayCount: 0)
         }
         let context = ModelContext(container)
@@ -75,7 +79,13 @@ struct Provider: TimelineProvider {
             predicate: #Predicate { $0.discoveredAt >= startOfDay },
             sortBy: [SortDescriptor(\.relevanceScore, order: .reverse)]
         )
-        let todaysPapers = (try? context.fetch(todayDescriptor)) ?? []
+        let todaysPapers: [Paper]
+        do {
+            todaysPapers = try context.fetch(todayDescriptor)
+        } catch {
+            logger.error("Widget fetch failed: \(String(describing: error), privacy: .public)")
+            todaysPapers = []
+        }
 
         let papersToShow: [Paper]
         if todaysPapers.isEmpty {
@@ -86,12 +96,18 @@ struct Provider: TimelineProvider {
             papersToShow = todaysPapers
         }
 
+        logger.notice("Widget timeline: \(todaysPapers.count, privacy: .public) today, \(papersToShow.count, privacy: .public) shown")
+
         return PapersEntry(
             date: .now,
             papers: papersToShow.prefix(5).map(PaperSummaryInfo.init),
             newTodayCount: todaysPapers.count
         )
     }
+}
+
+func paperURL(_ id: String) -> URL {
+    URL(string: "aipapers://paper/\(id)")!
 }
 
 struct AIPapersWidgetEntryView: View {
@@ -139,6 +155,7 @@ private struct SmallWidgetView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .containerBackground(.fill.tertiary, for: .widget)
+        .widgetURL(entry.papers.first.map { paperURL($0.id) })
     }
 }
 
@@ -158,26 +175,29 @@ private struct MediumWidgetView: View {
                 Spacer()
             } else {
                 ForEach(entry.papers.prefix(3)) { paper in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
-                            Text(paper.title)
-                                .font(.subheadline.weight(.medium))
-                                .lineLimit(1)
-                            if let category = paper.category {
-                                Text(category)
+                    Link(destination: paperURL(paper.id)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text(paper.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                                if let category = paper.category {
+                                    Text(category)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(.tertiary, in: Capsule())
+                                }
+                            }
+                            if let summary = paper.summary {
+                                Text(summary)
                                     .font(.caption2)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(.tertiary, in: Capsule())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
                         }
-                        if let summary = paper.summary {
-                            Text(summary)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             Spacer(minLength: 0)
@@ -203,32 +223,35 @@ private struct LargeWidgetView: View {
                 Spacer()
             } else {
                 ForEach(Array(entry.papers.prefix(4).enumerated()), id: \.element.id) { index, paper in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
-                            Text(paper.title)
-                                .font(.subheadline.weight(.medium))
-                                .lineLimit(2)
-                            if let category = paper.category {
-                                Text(category)
+                    Link(destination: paperURL(paper.id)) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 4) {
+                                Text(paper.title)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(2)
+                                if let category = paper.category {
+                                    Text(category)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(.tertiary, in: Capsule())
+                                }
+                            }
+                            if let summary = paper.summary {
+                                Text(summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            if let whyItMatters = paper.whyItMatters {
+                                Text("Why it matters: \(whyItMatters)")
                                     .font(.caption2)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1)
-                                    .background(.tertiary, in: Capsule())
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(2)
                             }
                         }
-                        if let summary = paper.summary {
-                            Text(summary)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                        if let whyItMatters = paper.whyItMatters {
-                            Text("Why it matters: \(whyItMatters)")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(2)
-                        }
                     }
+                    .buttonStyle(.plain)
                     if index < min(entry.papers.count, 4) - 1 {
                         Divider()
                     }
