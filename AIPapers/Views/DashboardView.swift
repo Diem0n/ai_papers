@@ -58,6 +58,15 @@ struct DashboardView: View {
                 .disabled(isRefreshing)
             }
         }
+        .task {
+            await autoRefreshIfNeeded()
+        }
+    }
+
+    private func autoRefreshIfNeeded() async {
+        let refreshedToday = allPapers.contains { Calendar.current.isDateInToday($0.discoveredAt) }
+        guard !refreshedToday else { return }
+        await refresh()
     }
 
     private func banner(_ text: String, isError: Bool) -> some View {
