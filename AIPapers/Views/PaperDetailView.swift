@@ -45,9 +45,7 @@ struct PaperDetailView: View {
 
                 section("Abstract", text: paper.abstractText)
 
-                if !relatedPapers.isEmpty {
-                    relatedSection
-                }
+                relatedSection
 
                 HStack {
                     if let url = URL(string: paper.url) {
@@ -72,10 +70,11 @@ struct PaperDetailView: View {
         .navigationTitle(paper.title)
         .task(id: paper.id) {
             paper.isRead = true
-            if paper.summary == nil {
-                await generateSummary()
-            }
-            await updateRelatedPapers()
+            // Detached so navigating to another paper before this finishes
+            // doesn't cancel it — .task(id:) cancellation only applies to
+            // work awaited directly in this closure.
+            let target = paper
+            Task { await updateRelatedPapers(for: target) }
         }
     }
 
@@ -106,20 +105,26 @@ struct PaperDetailView: View {
     private var relatedSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Related Papers").font(.headline)
-            ForEach(relatedPapers, id: \.paper.id) { related in
-                Button {
-                    onSelectRelated(related.paper)
-                } label: {
-                    HStack {
-                        Text(related.paper.title)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(Int(related.score * 100))%")
-                            .foregroundStyle(.secondary)
+            if relatedPapers.isEmpty {
+                Text("None yet — open a few more papers to build up connections between them.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(relatedPapers, id: \.paper.id) { related in
+                    Button {
+                        onSelectRelated(related.paper)
+                    } label: {
+                        HStack {
+                            Text(related.paper.title)
+                                .lineLimit(1)
+                            Spacer()
+                            Text("\(Int(related.score * 100))%")
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.tint)
             }
         }
     }
@@ -133,10 +138,13 @@ struct PaperDetailView: View {
         isSummarizing = false
     }
 
-    private func updateRelatedPapers() async {
+    private func updateRelatedPapers(for target: Paper) async {
         let service = PaperService(repository: PaperRepository(context: modelContext))
-        await service.embedIfNeeded(paper)
-        relatedPapers = (try? service.relatedPapers(to: paper)) ?? []
+        await service.embedIfNeeded(target)
+        let results = (try? service.relatedPapers(to: target)) ?? []
+        if target.id == paper.id {
+            relatedPapers = results
+        }
     }
 
     private func section(_ title: String, text: String) -> some View {
