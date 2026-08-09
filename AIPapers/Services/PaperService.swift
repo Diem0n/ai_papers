@@ -9,6 +9,7 @@
 
 import Foundation
 import os
+import WidgetKit
 
 struct RefreshResult {
     let papersAdded: Int
@@ -66,6 +67,7 @@ final class PaperService {
             onProgress("Saving \(newPapers.count) papers…")
             try repository.save()
             logger.notice("Saved \(newPapers.count, privacy: .public) new papers")
+            WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
         }
 
         return RefreshResult(papersAdded: newPapers.count)
@@ -87,6 +89,7 @@ final class PaperService {
                 topics: AppSettings.topics
             )
             try? repository.save()
+            WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
             return true
         } catch let error as OllamaServiceError {
             logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(error.debugDescription, privacy: .public)")
