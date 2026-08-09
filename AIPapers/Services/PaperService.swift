@@ -98,7 +98,9 @@ final class PaperService {
     /// Synthesizes a cross-paper "where the field is heading" brief, once per
     /// day — this reasons over ~15 papers of context, much heavier than a
     /// per-paper call, so it shouldn't re-run on every manual refresh click.
-    private func generateTrendBriefIfNeeded(onProgress: (String) -> Void) async {
+    /// Public: this is a separate daily concern from fetching new papers, so
+    /// callers can trigger it even when a full arXiv refresh isn't needed.
+    func generateTrendBriefIfNeeded(onProgress: (String) -> Void = { _ in }) async {
         if let existing = TrendBriefStore.loadLatest(), Calendar.current.isDateInToday(existing.day) {
             return
         }

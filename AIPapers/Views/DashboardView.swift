@@ -86,7 +86,15 @@ struct DashboardView: View {
         hasAutoRefreshed = true
 
         let refreshedToday = allPapers.contains { Calendar.current.isDateInToday($0.discoveredAt) }
-        guard !refreshedToday else { return }
+        guard !refreshedToday else {
+            // arXiv doesn't need hitting again today, but the trend brief is a
+            // separate daily concern — don't let it ride on that check too.
+            isRefreshing = true
+            defer { isRefreshing = false; progressText = nil }
+            let service = PaperService(repository: PaperRepository(context: modelContext))
+            await service.generateTrendBriefIfNeeded { stage in progressText = stage }
+            return
+        }
         await refresh()
     }
 
