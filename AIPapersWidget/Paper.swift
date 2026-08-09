@@ -33,6 +33,7 @@ final class Paper {
 
     var isRead: Bool
     var isFavorite: Bool
+    var embedding: [Double]?
 
     init(
         id: String,
@@ -47,7 +48,8 @@ final class Paper {
         category: String? = nil,
         relevanceScore: Double = 0,
         isRead: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        embedding: [Double]? = nil
     ) {
         self.id = id
         self.title = title
@@ -62,5 +64,6 @@ final class Paper {
         self.relevanceScore = relevanceScore
         self.isRead = isRead
         self.isFavorite = isFavorite
+        self.embedding = embedding
     }
 }
