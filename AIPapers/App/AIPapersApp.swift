@@ -10,11 +10,13 @@ import SwiftData
 
 @main
 struct AIPapersApp: App {
+    let modelContainer = SharedModelContainer.make()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: Paper.self)
+        .modelContainer(modelContainer)
         .defaultSize(width: 1200, height: 780)
 
         Settings {
