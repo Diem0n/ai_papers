@@ -22,4 +22,5 @@ nonisolated enum AppConstants {
 
     static let ollamaBaseURL = URL(string: "http://localhost:11434")!
     static let ollamaModel = "gemma3:4b"
+    static let embeddingModel = "mxbai-embed-large"
 }

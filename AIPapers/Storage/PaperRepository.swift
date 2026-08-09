@@ -23,6 +23,10 @@ final class PaperRepository {
         return Set(papers.map(\.id))
     }
 
+    func allPapers() throws -> [Paper] {
+        try context.fetch(FetchDescriptor<Paper>())
+    }
+
     func insert(_ paper: Paper) {
         context.insert(paper)
     }

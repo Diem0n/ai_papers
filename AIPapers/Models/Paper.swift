@@ -28,6 +28,10 @@ final class Paper {
     var isRead: Bool
     var isFavorite: Bool
 
+    /// Semantic embedding of title+abstract, generated on demand when the
+    /// paper is first opened. Powers "Related Papers" via cosine similarity.
+    var embedding: [Double]?
+
     init(
         id: String,
         title: String,
@@ -41,7 +45,8 @@ final class Paper {
         category: String? = nil,
         relevanceScore: Double = 0,
         isRead: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        embedding: [Double]? = nil
     ) {
         self.id = id
         self.title = title
@@ -56,5 +61,6 @@ final class Paper {
         self.relevanceScore = relevanceScore
         self.isRead = isRead
         self.isFavorite = isFavorite
+        self.embedding = embedding
     }
 }
