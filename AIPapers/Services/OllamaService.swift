@@ -8,7 +8,7 @@
 
 import Foundation
 
-struct OllamaSummary: Codable, Sendable, Equatable {
+nonisolated struct OllamaSummary: Codable, Sendable, Equatable {
     let summary: String
     let keyContribution: String
     let whyItMatters: String
@@ -113,13 +113,13 @@ nonisolated final class OllamaService {
     }
 }
 
-private struct GenerateRequest: Encodable {
+nonisolated private struct GenerateRequest: Encodable {
     let model: String
     let prompt: String
     let stream: Bool
     let format: String
 }
 
-private struct GenerateResponse: Decodable {
+nonisolated private struct GenerateResponse: Decodable {
     let response: String
 }
