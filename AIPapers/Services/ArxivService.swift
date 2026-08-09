@@ -94,7 +94,7 @@ nonisolated final class ArxivService {
 
 /// SAX-style parser for the arXiv Atom feed. Kept private to ArxivService —
 /// nothing outside this file needs to know the feed is Atom/XML.
-private final class ArxivAtomParser: NSObject, XMLParserDelegate {
+nonisolated private final class ArxivAtomParser: NSObject, XMLParserDelegate {
     private var papers: [ArxivPaper] = []
 
     private var currentElement = ""
@@ -107,9 +107,11 @@ private final class ArxivAtomParser: NSObject, XMLParserDelegate {
     private var currentCategory: String?
     private var insideEntry = false
 
+    // arXiv publishes timestamps without fractional seconds ("2020-12-09T05:08:41Z");
+    // requiring .withFractionalSeconds here silently failed every entry's date parse.
     private let dateFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
 
