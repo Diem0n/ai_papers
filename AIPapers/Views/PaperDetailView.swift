@@ -2,11 +2,19 @@
 //  PaperDetailView.swift
 //  AIPapers
 //
+//  Summaries are generated on demand — refresh() only ingests metadata,
+//  so Ollama is called here, the first time a paper is actually opened.
+//
 
 import SwiftUI
+import SwiftData
 
 struct PaperDetailView: View {
     @Bindable var paper: Paper
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var isSummarizing = false
+    @State private var summarizeFailed = false
 
     var body: some View {
         ScrollView {
@@ -31,17 +39,7 @@ struct PaperDetailView: View {
 
                 Divider()
 
-                if let summary = paper.summary {
-                    section("Summary", text: summary)
-                }
-                if let whyItMatters = paper.whyItMatters {
-                    section("Why it matters", text: whyItMatters)
-                }
-                if paper.summary == nil {
-                    Text("No summary yet. Refresh with Ollama running to generate one.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+                summarySection
 
                 section("Abstract", text: paper.abstractText)
 
@@ -66,7 +64,44 @@ struct PaperDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(paper.title)
-        .onAppear { paper.isRead = true }
+        .task(id: paper.id) {
+            paper.isRead = true
+            guard paper.summary == nil else { return }
+            await generateSummary()
+        }
+    }
+
+    @ViewBuilder
+    private var summarySection: some View {
+        if let summary = paper.summary {
+            section("Summary", text: summary)
+            if let whyItMatters = paper.whyItMatters {
+                section("Why it matters", text: whyItMatters)
+            }
+        } else if isSummarizing {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Generating summary…").foregroundStyle(.secondary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(summarizeFailed ? "Couldn't generate a summary. Make sure Ollama is running." : "No summary yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button("Generate Summary") {
+                    Task { await generateSummary() }
+                }
+            }
+        }
+    }
+
+    private func generateSummary() async {
+        isSummarizing = true
+        summarizeFailed = false
+        let service = PaperService(repository: PaperRepository(context: modelContext))
+        let success = await service.summarize(paper)
+        summarizeFailed = !success
+        isSummarizing = false
     }
 
     private func section(_ title: String, text: String) -> some View {

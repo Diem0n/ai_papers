@@ -116,8 +116,6 @@ struct DashboardView: View {
             }
             if result.papersAdded == 0 {
                 statusMessage = "No new papers found. Your archive is already up to date."
-            } else if result.summariesFailed > 0 {
-                statusMessage = "Added \(result.papersAdded) papers. \(result.summariesFailed) summaries unavailable — Ollama isn't running. Start Ollama and try again."
             } else {
                 statusMessage = "Added \(result.papersAdded) new papers."
             }

@@ -16,9 +16,10 @@ enum RelevanceService {
         abstractText: String,
         publishedAt: Date,
         llmRelevance: Double? = nil,
+        topics: [String] = AppConstants.topics,
         referenceDate: Date = .now
     ) -> Double {
-        let topic = topicMatchScore(title: title, abstractText: abstractText)
+        let topic = topicMatchScore(title: title, abstractText: abstractText, topics: topics)
         let recency = recencyScore(publishedAt: publishedAt, referenceDate: referenceDate)
 
         let combined: Double
@@ -33,10 +34,10 @@ enum RelevanceService {
     // ponytail: keyword matching only, no code/model-availability or user-history
     // signal yet — those need infra this MVP doesn't have. Fold in once
     // interaction tracking and GitHub-link detection exist.
-    private static func topicMatchScore(title: String, abstractText: String) -> Double {
-        guard !AppConstants.topics.isEmpty else { return 0 }
+    private static func topicMatchScore(title: String, abstractText: String, topics: [String]) -> Double {
+        guard !topics.isEmpty else { return 0 }
         let haystack = (title + " " + abstractText).lowercased()
-        let matches = AppConstants.topics.filter { haystack.contains($0.lowercased()) }.count
+        let matches = topics.filter { haystack.contains($0.lowercased()) }.count
         return min(Double(matches) / 3.0, 1.0)
     }
 
