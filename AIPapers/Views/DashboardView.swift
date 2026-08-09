@@ -41,6 +41,7 @@ struct DashboardView: View {
                         PaperRowView(paper: paper).tag(paper)
                     }
                 }
+                .navigationSplitViewColumnWidth(min: 360, ideal: 420)
             }
         }
         .navigationTitle("Dashboard")
@@ -72,12 +73,14 @@ struct DashboardView: View {
     private func banner(_ text: String, isError: Bool) -> some View {
         Text(text)
             .font(.callout)
-            .padding(8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isError ? Color.red.opacity(0.15) : Color.accentColor.opacity(0.12))
     }
 
     private func refresh() async {
+        guard !isRefreshing else { return }
         isRefreshing = true
         errorMessage = nil
         statusMessage = nil
