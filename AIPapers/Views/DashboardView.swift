@@ -7,6 +7,9 @@
 
 import SwiftUI
 import SwiftData
+import os
+
+private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "DashboardView")
 
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
@@ -14,8 +17,10 @@ struct DashboardView: View {
     @Binding var selectedPaper: Paper?
 
     @State private var isRefreshing = false
+    @State private var hasAutoRefreshed = false
     @State private var statusMessage: String?
     @State private var errorMessage: String?
+    @State private var progressText: String?
 
     private var topPapers: [Paper] {
         Array(allPapers.prefix(30))
@@ -23,18 +28,29 @@ struct DashboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let errorMessage {
+            if isRefreshing, let progressText {
+                banner(progressText, isError: false)
+            } else if let errorMessage {
                 banner(errorMessage, isError: true)
             } else if let statusMessage {
                 banner(statusMessage, isError: false)
             }
 
             if allPapers.isEmpty {
-                ContentUnavailableView(
-                    "No papers yet",
-                    systemImage: "tray",
-                    description: Text("Refresh to fetch today's AI engineering papers.")
-                )
+                if isRefreshing {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text(progressText ?? "Refreshing…")
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ContentUnavailableView(
+                        "No papers yet",
+                        systemImage: "tray",
+                        description: Text("Refresh to fetch today's AI engineering papers.")
+                    )
+                }
             } else {
                 List(selection: $selectedPaper) {
                     ForEach(topPapers) { paper in
@@ -60,11 +76,15 @@ struct DashboardView: View {
             }
         }
         .task {
+            logger.notice("Dashboard loaded with \(allPapers.count, privacy: .public) stored papers")
             await autoRefreshIfNeeded()
         }
     }
 
     private func autoRefreshIfNeeded() async {
+        guard !hasAutoRefreshed else { return }
+        hasAutoRefreshed = true
+
         let refreshedToday = allPapers.contains { Calendar.current.isDateInToday($0.discoveredAt) }
         guard !refreshedToday else { return }
         await refresh()
@@ -84,11 +104,16 @@ struct DashboardView: View {
         isRefreshing = true
         errorMessage = nil
         statusMessage = nil
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            progressText = nil
+        }
 
         let service = PaperService(repository: PaperRepository(context: modelContext))
         do {
-            let result = try await service.refresh()
+            let result = try await service.refresh { stage in
+                progressText = stage
+            }
             if result.papersAdded == 0 {
                 statusMessage = "No new papers found. Your archive is already up to date."
             } else if result.summariesFailed > 0 {
