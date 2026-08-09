@@ -11,6 +11,7 @@ import Foundation
 nonisolated enum AppSettingsKeys {
     static let maxPapersToFetch = "maxPapersToFetch"
     static let topicsCSV = "topicsCSV"
+    static let ollamaModel = "ollamaModel"
 }
 
 nonisolated enum AppSettings {
@@ -25,5 +26,10 @@ nonisolated enum AppSettings {
         }
         let parsed = csv.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         return parsed.isEmpty ? AppConstants.topics : parsed
+    }
+
+    static var ollamaModel: String {
+        let stored = UserDefaults.standard.string(forKey: AppSettingsKeys.ollamaModel)
+        return (stored?.isEmpty == false) ? stored! : AppConstants.ollamaModel
     }
 }

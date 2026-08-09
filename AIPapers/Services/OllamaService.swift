@@ -58,11 +58,21 @@ nonisolated final class OllamaService {
     init(
         session: URLSession = .shared,
         baseURL: URL = AppConstants.ollamaBaseURL,
-        model: String = AppConstants.ollamaModel
+        model: String = AppSettings.ollamaModel
     ) {
         self.session = session
         self.baseURL = baseURL
         self.model = model
+    }
+
+    /// Locally installed model names, for populating a picker. Empty if Ollama isn't running.
+    func listModels() async throws -> [String] {
+        let (data, response) = try await session.data(from: baseURL.appendingPathComponent("api/tags"))
+        guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
+            throw OllamaServiceError.invalidResponse
+        }
+        let tags = try JSONDecoder().decode(TagsResponse.self, from: data)
+        return tags.models.map(\.name)
     }
 
     func summarize(title: String, abstractText: String) async throws -> OllamaSummary {
@@ -148,4 +158,11 @@ nonisolated private struct GenerateRequest: Encodable {
 
 nonisolated private struct GenerateResponse: Decodable {
     let response: String
+}
+
+nonisolated private struct TagsResponse: Decodable {
+    struct ModelTag: Decodable {
+        let name: String
+    }
+    let models: [ModelTag]
 }
