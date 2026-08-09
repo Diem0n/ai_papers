@@ -10,6 +10,7 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case archive = "Archive"
     case graph = "Graph"
+    case trend = "Trend Brief"
 
     var id: String { rawValue }
     var systemImage: String {
@@ -17,6 +18,7 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
         case .dashboard: "sparkles"
         case .archive: "archivebox"
         case .graph: "point.3.connected.trianglepath.dotted"
+        case .trend: "text.book.closed"
         }
     }
 }
@@ -45,6 +47,9 @@ struct ContentView: View {
             case .graph:
                 KnowledgeGraphView(selectedPaper: $selectedPaper)
                     .navigationSplitViewColumnWidth(min: 420, ideal: 600)
+            case .trend:
+                TrendBriefView()
+                    .navigationSplitViewColumnWidth(min: 420, ideal: 600)
             case .none:
                 ContentUnavailableView("Select a section", systemImage: "sidebar.left")
             }
@@ -60,6 +65,11 @@ struct ContentView: View {
             guard let paperID else { return }
             openPaper(id: paperID)
             router.pendingPaperID = nil
+        }
+        .onChange(of: router.pendingTrendOpen) { _, shouldOpen in
+            guard shouldOpen else { return }
+            selection = .trend
+            router.pendingTrendOpen = false
         }
     }
 
