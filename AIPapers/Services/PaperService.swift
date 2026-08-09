@@ -46,6 +46,7 @@ final class PaperService {
         logger.notice("arXiv returned \(incoming.count, privacy: .public) papers, \(existingIDs.count, privacy: .public) already stored, \(newPapers.count, privacy: .public) new")
 
         let topics = AppSettings.topics
+        var insertedPapers: [Paper] = []
         for arxivPaper in newPapers {
             let relevance = RelevanceService.score(
                 title: arxivPaper.title,
@@ -64,12 +65,25 @@ final class PaperService {
                 relevanceScore: relevance
             )
             repository.insert(paper)
+            insertedPapers.append(paper)
         }
 
-        if !newPapers.isEmpty {
-            onProgress("Saving \(newPapers.count) papers…")
+        if !insertedPapers.isEmpty {
+            onProgress("Saving \(insertedPapers.count) papers…")
             try repository.save()
-            logger.notice("Saved \(newPapers.count, privacy: .public) new papers")
+            logger.notice("Saved \(insertedPapers.count, privacy: .public) new papers")
+            WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
+        }
+
+        // Embeddings are cheap (well under 1s each) so, unlike summaries, they
+        // run eagerly here — related papers and the graph need broad coverage
+        // to be useful, not just whatever you happen to have opened.
+        for (index, paper) in insertedPapers.enumerated() {
+            onProgress("Finding connections \(index + 1) of \(insertedPapers.count)…")
+            await embed(paper)
+        }
+        if !insertedPapers.isEmpty {
+            try? repository.save()
             WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
         }
 
@@ -103,14 +117,18 @@ final class PaperService {
         }
     }
 
-    /// Generates a semantic embedding on demand — called when a paper's detail
-    /// view is opened, same trigger as summarize(). No-op if already embedded.
+    /// Fallback for papers that don't have an embedding yet (an older paper
+    /// from before this existed, or a failed attempt during refresh).
     func embedIfNeeded(_ paper: Paper) async {
         guard paper.embedding == nil else { return }
+        await embed(paper)
+        try? repository.save()
+    }
+
+    private func embed(_ paper: Paper) async {
         do {
             let text = "\(paper.title)\n\(paper.abstractText)"
             paper.embedding = try await embeddingService.embed(text: text)
-            try? repository.save()
         } catch {
             logger.error("Embedding failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
         }
