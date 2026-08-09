@@ -1,0 +1,60 @@
+//
+//  Paper.swift
+//  AIPapers
+//
+
+import Foundation
+import SwiftData
+
+@Model
+final class Paper {
+    @Attribute(.unique)
+    var id: String
+
+    var title: String
+    var authors: String
+    var abstractText: String
+    var url: String
+
+    var publishedAt: Date
+    var discoveredAt: Date
+
+    var summary: String?
+    var whyItMatters: String?
+
+    var category: String?
+    var relevanceScore: Double
+
+    var isRead: Bool
+    var isFavorite: Bool
+
+    init(
+        id: String,
+        title: String,
+        authors: String,
+        abstractText: String,
+        url: String,
+        publishedAt: Date,
+        discoveredAt: Date = .now,
+        summary: String? = nil,
+        whyItMatters: String? = nil,
+        category: String? = nil,
+        relevanceScore: Double = 0,
+        isRead: Bool = false,
+        isFavorite: Bool = false
+    ) {
+        self.id = id
+        self.title = title
+        self.authors = authors
+        self.abstractText = abstractText
+        self.url = url
+        self.publishedAt = publishedAt
+        self.discoveredAt = discoveredAt
+        self.summary = summary
+        self.whyItMatters = whyItMatters
+        self.category = category
+        self.relevanceScore = relevanceScore
+        self.isRead = isRead
+        self.isFavorite = isFavorite
+    }
+}
