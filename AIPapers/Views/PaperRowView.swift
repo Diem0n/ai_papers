@@ -25,12 +25,19 @@ struct PaperRowView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                if let category = paper.category {
-                    Text(category)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.tertiary, in: Capsule())
+                HStack(spacing: 6) {
+                    if let category = paper.category {
+                        Text(category)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.tertiary, in: Capsule())
+                    }
+                    if paper.summary == nil {
+                        Label("No summary", systemImage: "text.badge.xmark")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
             Spacer(minLength: 8)
