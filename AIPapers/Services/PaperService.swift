@@ -22,18 +22,21 @@ final class PaperService {
     private let arxivService: ArxivService
     private let ollamaService: OllamaService
     private let embeddingService: EmbeddingService
+    private let trendBriefService: TrendBriefService
     private let repository: PaperRepository
 
     init(
         repository: PaperRepository,
         arxivService: ArxivService = ArxivService(),
         ollamaService: OllamaService = OllamaService(),
-        embeddingService: EmbeddingService = EmbeddingService()
+        embeddingService: EmbeddingService = EmbeddingService(),
+        trendBriefService: TrendBriefService = TrendBriefService()
     ) {
         self.repository = repository
         self.arxivService = arxivService
         self.ollamaService = ollamaService
         self.embeddingService = embeddingService
+        self.trendBriefService = trendBriefService
     }
 
     @discardableResult
@@ -87,7 +90,41 @@ final class PaperService {
             WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
         }
 
+        await generateTrendBriefIfNeeded(onProgress: onProgress)
+
         return RefreshResult(papersAdded: newPapers.count)
+    }
+
+    /// Synthesizes a cross-paper "where the field is heading" brief, once per
+    /// day — this reasons over ~15 papers of context, much heavier than a
+    /// per-paper call, so it shouldn't re-run on every manual refresh click.
+    private func generateTrendBriefIfNeeded(onProgress: (String) -> Void) async {
+        if let existing = TrendBriefStore.load(), Calendar.current.isDateInToday(existing.day) {
+            return
+        }
+        guard let allPapers = try? repository.allPapers(), !allPapers.isEmpty else { return }
+
+        let topPapers = allPapers
+            .sorted { $0.relevanceScore > $1.relevanceScore }
+            .prefix(15)
+        let digests = topPapers.map {
+            TrendBriefService.PaperDigest(title: $0.title, synopsis: $0.summary ?? $0.abstractText)
+        }
+
+        onProgress("Synthesizing today's trend brief…")
+        do {
+            let content = try await trendBriefService.generateBrief(papers: digests)
+            let brief = TrendBrief(
+                day: Calendar.current.startOfDay(for: .now),
+                generatedAt: .now,
+                content: content,
+                paperCount: digests.count
+            )
+            TrendBriefStore.save(brief)
+            WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
+        } catch {
+            logger.error("Trend brief generation failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// Summarizes a single paper on demand — called when its detail view is opened.
