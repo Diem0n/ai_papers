@@ -9,12 +9,14 @@ import SwiftData
 private enum SidebarItem: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
     case archive = "Archive"
+    case graph = "Graph"
 
     var id: String { rawValue }
     var systemImage: String {
         switch self {
         case .dashboard: "sparkles"
         case .archive: "archivebox"
+        case .graph: "point.3.connected.trianglepath.dotted"
         }
     }
 }
@@ -40,6 +42,9 @@ struct ContentView: View {
                 DashboardView(selectedPaper: $selectedPaper)
             case .archive:
                 ArchiveView(selectedPaper: $selectedPaper)
+            case .graph:
+                KnowledgeGraphView(selectedPaper: $selectedPaper)
+                    .navigationSplitViewColumnWidth(min: 420, ideal: 600)
             case .none:
                 ContentUnavailableView("Select a section", systemImage: "sidebar.left")
             }
