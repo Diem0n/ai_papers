@@ -93,6 +93,8 @@ struct DashboardView: View {
             } else {
                 statusMessage = "Added \(result.papersAdded) new papers."
             }
+        } catch let error as ArxivServiceError {
+            errorMessage = error.errorDescription
         } catch {
             errorMessage = "arXiv is unavailable. Check your connection and try again."
         }

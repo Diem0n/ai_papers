@@ -21,6 +21,7 @@ struct ArxivPaper: Sendable, Equatable {
 
 enum ArxivServiceError: LocalizedError {
     case invalidURL
+    case rateLimited
     case invalidResponse
     case parsingFailed
 
@@ -28,6 +29,8 @@ enum ArxivServiceError: LocalizedError {
         switch self {
         case .invalidURL:
             return "Could not build the arXiv request."
+        case .rateLimited:
+            return "arXiv is rate-limiting requests right now. Try again in a few minutes."
         case .invalidResponse:
             return "arXiv did not return a valid response."
         case .parsingFailed:
@@ -50,16 +53,15 @@ nonisolated final class ArxivService {
     ) async throws -> [ArxivPaper] {
         let url = try buildQueryURL(categories: categories, maxResults: maxResults)
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(from: url)
-        } catch {
-            throw error
-        }
+        let (data, response) = try await session.data(from: url)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ArxivServiceError.invalidResponse
+        }
+        if httpResponse.statusCode == 429 {
+            throw ArxivServiceError.rateLimited
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
             throw ArxivServiceError.invalidResponse
         }
 
