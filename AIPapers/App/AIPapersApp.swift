@@ -29,6 +29,7 @@ struct AIPapersApp: App {
             ContentView()
                 .environmentObject(router)
                 .environmentObject(appActivity)
+                .preferredColorScheme(.light)
                 .onOpenURL { url in
                     router.handle(url)
                 }
@@ -38,6 +39,7 @@ struct AIPapersApp: App {
 
         Settings {
             SettingsView()
+                .preferredColorScheme(.light)
         }
     }
 }
