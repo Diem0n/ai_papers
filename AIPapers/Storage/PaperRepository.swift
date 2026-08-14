@@ -27,6 +27,10 @@ final class PaperRepository {
         try context.fetch(FetchDescriptor<Paper>())
     }
 
+    func papersNeedingSummary() throws -> [Paper] {
+        try context.fetch(FetchDescriptor<Paper>(predicate: #Predicate { $0.summary == nil }))
+    }
+
     func insert(_ paper: Paper) {
         context.insert(paper)
     }
