@@ -12,10 +12,9 @@ import SwiftData
 struct PaperDetailView: View {
     @Bindable var paper: Paper
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var appActivity: AppActivity
     var onSelectRelated: (Paper) -> Void = { _ in }
 
-    @State private var isSummarizing = false
-    @State private var summarizeFailed = false
     @State private var relatedPapers: [(paper: Paper, score: Double)] = []
 
     var body: some View {
@@ -85,18 +84,18 @@ struct PaperDetailView: View {
             if let whyItMatters = paper.whyItMatters {
                 section("Why it matters", text: whyItMatters)
             }
-        } else if isSummarizing {
+        } else if appActivity.summarizingPaperIDs.contains(paper.id) {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text("Generating summary…").foregroundStyle(.secondary)
             }
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(summarizeFailed ? "Couldn't generate a summary. Make sure Ollama is running." : "No summary yet.")
+                Text(appActivity.failedSummaryPaperIDs.contains(paper.id) ? "Couldn't generate a summary. Make sure Ollama is running." : "No summary yet.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button("Generate Summary") {
-                    Task { await generateSummary() }
+                    appActivity.summarize(paper)
                 }
             }
         }
@@ -127,15 +126,6 @@ struct PaperDetailView: View {
                 }
             }
         }
-    }
-
-    private func generateSummary() async {
-        isSummarizing = true
-        summarizeFailed = false
-        let service = PaperService(repository: PaperRepository(context: modelContext))
-        let success = await service.summarize(paper)
-        summarizeFailed = !success
-        isSummarizing = false
     }
 
     private func updateRelatedPapers(for target: Paper) async {

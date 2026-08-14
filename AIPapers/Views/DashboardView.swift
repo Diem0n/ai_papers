@@ -3,6 +3,8 @@
 //  AIPapers
 //
 //  "What should I read today?" — top-ranked papers, not just recent ones.
+//  Refresh status lives in AppActivity (shown by ContentView's persistent
+//  banner) so it isn't tied to this view's lifecycle.
 //
 
 import SwiftUI
@@ -12,35 +14,21 @@ import os
 private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "DashboardView")
 
 struct DashboardView: View {
-    @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var appActivity: AppActivity
     @Query(sort: \Paper.relevanceScore, order: .reverse) private var allPapers: [Paper]
     @Binding var selectedPaper: Paper?
-
-    @State private var isRefreshing = false
-    @State private var hasAutoRefreshed = false
-    @State private var statusMessage: String?
-    @State private var errorMessage: String?
-    @State private var progressText: String?
 
     private var topPapers: [Paper] {
         Array(allPapers.prefix(30))
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if isRefreshing, let progressText {
-                banner(progressText, isError: false)
-            } else if let errorMessage {
-                banner(errorMessage, isError: true)
-            } else if let statusMessage {
-                banner(statusMessage, isError: false)
-            }
-
+        Group {
             if allPapers.isEmpty {
-                if isRefreshing {
+                if appActivity.isRefreshing {
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text(progressText ?? "Refreshing…")
+                        Text(appActivity.refreshProgressText ?? "Refreshing…")
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -64,73 +52,20 @@ struct DashboardView: View {
         .toolbar {
             ToolbarItem {
                 Button {
-                    Task { await refresh() }
+                    appActivity.refresh()
                 } label: {
-                    if isRefreshing {
+                    if appActivity.isRefreshing {
                         ProgressView()
                     } else {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
                 }
-                .disabled(isRefreshing)
+                .disabled(appActivity.isRefreshing)
             }
         }
         .task {
             logger.notice("Dashboard loaded with \(allPapers.count, privacy: .public) stored papers")
-            await autoRefreshIfNeeded()
-        }
-    }
-
-    private func autoRefreshIfNeeded() async {
-        guard !hasAutoRefreshed else { return }
-        hasAutoRefreshed = true
-
-        let refreshedToday = allPapers.contains { Calendar.current.isDateInToday($0.discoveredAt) }
-        guard !refreshedToday else {
-            // arXiv doesn't need hitting again today, but the trend brief is a
-            // separate daily concern — don't let it ride on that check too.
-            isRefreshing = true
-            defer { isRefreshing = false; progressText = nil }
-            let service = PaperService(repository: PaperRepository(context: modelContext))
-            await service.generateTrendBriefIfNeeded { stage in progressText = stage }
-            return
-        }
-        await refresh()
-    }
-
-    private func banner(_ text: String, isError: Bool) -> some View {
-        Text(text)
-            .font(.callout)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isError ? Color.red.opacity(0.15) : Color.accentColor.opacity(0.12))
-    }
-
-    private func refresh() async {
-        guard !isRefreshing else { return }
-        isRefreshing = true
-        errorMessage = nil
-        statusMessage = nil
-        defer {
-            isRefreshing = false
-            progressText = nil
-        }
-
-        let service = PaperService(repository: PaperRepository(context: modelContext))
-        do {
-            let result = try await service.refresh { stage in
-                progressText = stage
-            }
-            if result.papersAdded == 0 {
-                statusMessage = "No new papers found. Your archive is already up to date."
-            } else {
-                statusMessage = "Added \(result.papersAdded) new papers."
-            }
-        } catch let error as ArxivServiceError {
-            errorMessage = error.errorDescription
-        } catch {
-            errorMessage = "arXiv is unavailable. Check your connection and try again."
+            appActivity.autoRefreshIfNeeded()
         }
     }
 }
