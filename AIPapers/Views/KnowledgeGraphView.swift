@@ -38,6 +38,8 @@ struct KnowledgeGraphView: View {
     @State private var nodeClusterIndex: [String: Int] = [:]
     @State private var clusters: [GraphCluster] = []
     @State private var computedForIDs: Set<String> = []
+    @State private var lastLayoutSize: CGSize = .zero
+    @State private var hoveredPaperID: String?
 
     private var embeddedPapers: [Paper] {
         allPapers.filter { $0.embedding != nil }
@@ -83,6 +85,7 @@ struct KnowledgeGraphView: View {
                         GraphNodeView(
                             paper: paper,
                             isSelected: selectedPaper?.id == paper.id,
+                            showLabel: selectedPaper?.id == paper.id || hoveredPaperID == paper.id,
                             color: nodeColor(for: paper.id)
                         )
                         .position(position)
@@ -91,12 +94,15 @@ struct KnowledgeGraphView: View {
                                 .onChanged { value in nodePositions[paper.id] = value.location }
                         )
                         .onTapGesture { selectedPaper = paper }
+                        .onHover { isHovered in hoveredPaperID = isHovered ? paper.id : nil }
+                        .zIndex(selectedPaper?.id == paper.id || hoveredPaperID == paper.id ? 1 : 0)
                     }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .onAppear { recomputeIfNeeded(size: geometry.size) }
             .onChange(of: embeddedPapers.map(\.id)) { recomputeIfNeeded(size: geometry.size) }
+            .onChange(of: geometry.size) { recomputeIfNeeded(size: geometry.size) }
         }
         .overlay(alignment: .topTrailing) {
             if !clusters.isEmpty {
@@ -139,7 +145,8 @@ struct KnowledgeGraphView: View {
     private func recomputeIfNeeded(size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         let ids = Set(embeddedPapers.map(\.id))
-        guard ids != computedForIDs else { return }
+        let sizeChanged = abs(lastLayoutSize.width - size.width) > 40 || abs(lastLayoutSize.height - size.height) > 40
+        guard ids != computedForIDs || sizeChanged else { return }
         computedForIDs = ids
 
         let topics = AppSettings.topics
@@ -163,8 +170,9 @@ struct KnowledgeGraphView: View {
         }
 
         let missingPositions = ids.contains { nodePositions[$0] == nil }
-        if missingPositions {
+        if missingPositions || sizeChanged {
             nodePositions = GraphLayoutService.layout(nodeIDs: Array(ids), edges: computedEdges.map { .init(from: $0.from, to: $0.to, weight: $0.weight) }, canvasSize: size)
+            lastLayoutSize = size
         }
     }
 
@@ -216,20 +224,29 @@ struct KnowledgeGraphView: View {
 private struct GraphNodeView: View {
     let paper: Paper
     let isSelected: Bool
+    let showLabel: Bool
     let color: Color
 
     var body: some View {
         VStack(spacing: 4) {
             Circle()
-                .fill(isSelected ? color : color.opacity(0.7))
-                .frame(width: 14, height: 14)
+                .fill(isSelected || showLabel ? color : color.opacity(0.7))
+                .frame(width: 12, height: 12)
                 .overlay(Circle().stroke(.primary, lineWidth: isSelected ? 1.5 : 0))
-            Text(paper.title)
-                .font(.caption2)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(width: 100)
+
+            if showLabel {
+                Text(paper.title)
+                    .font(.caption2)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 130)
+                    .padding(4)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
+            }
         }
+        // Hit area bigger than the visible dot, and consistent whether or not
+        // the label is showing — small targets are hard to tap/hover precisely.
+        .frame(minWidth: 28, minHeight: 28)
         .contentShape(Rectangle())
     }
 }
