@@ -33,7 +33,12 @@ struct PaperDetailView: View {
                     if let category = paper.category {
                         Label(category, systemImage: "tag")
                     }
-                    Label("\(Int(paper.relevanceScore * 100))% relevant", systemImage: "gauge.with.needle")
+                    Label {
+                        Text("\(Int(paper.relevanceScore * 100))% relevant")
+                            .font(.system(.caption, design: .monospaced))
+                    } icon: {
+                        Image(systemName: "gauge.with.needle")
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -103,7 +108,7 @@ struct PaperDetailView: View {
 
     private var relatedSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Related Papers").font(.headline)
+            sectionHeader("Related Papers")
             if relatedPapers.isEmpty {
                 Text("None yet — open a few more papers to build up connections between them.")
                     .font(.callout)
@@ -118,6 +123,7 @@ struct PaperDetailView: View {
                                 .lineLimit(1)
                             Spacer()
                             Text("\(Int(related.score * 100))%")
+                                .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -139,9 +145,16 @@ struct PaperDetailView: View {
 
     private func section(_ title: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.headline)
+            sectionHeader(title)
             Text(text)
                 .lineSpacing(3)
         }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(.caption, design: .default, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(.secondary)
     }
 }

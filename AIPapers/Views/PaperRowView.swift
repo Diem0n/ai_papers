@@ -27,11 +27,11 @@ struct PaperRowView: View {
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     if let category = paper.category {
-                        Text(category)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(.tertiary, in: Capsule())
+                        Text(category.uppercased())
+                            .font(.system(.caption2, design: .monospaced))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary.opacity(0.5), lineWidth: 1))
                     }
                     if paper.summary == nil {
                         Label("No summary", systemImage: "text.badge.xmark")
@@ -42,7 +42,7 @@ struct PaperRowView: View {
             }
             Spacer(minLength: 8)
             if !paper.isRead {
-                Circle()
+                RoundedRectangle(cornerRadius: 2)
                     .fill(.tint)
                     .frame(width: 8, height: 8)
                     .padding(.top, 6)
