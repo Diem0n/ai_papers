@@ -59,11 +59,11 @@ struct KnowledgeGraphView: View {
                         if let from = nodePositions[edge.from], let to = nodePositions[edge.to] {
                             let midpoint = CGPoint(x: (from.x + to.x) / 2, y: (from.y + to.y) / 2)
                             if let topic = edge.sharedTopics.first {
-                                Text(topic)
-                                    .font(.system(size: 9))
+                                Text(topic.uppercased())
+                                    .font(.system(size: 8, design: .monospaced))
                                     .foregroundStyle(.secondary)
                                     .padding(.horizontal, 3)
-                                    .background(.background, in: RoundedRectangle(cornerRadius: 3))
+                                    .background(.background)
                                     .position(midpoint)
                             }
                         }
@@ -129,16 +129,18 @@ struct KnowledgeGraphView: View {
     }
 
     private var legend: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(clusters.enumerated()), id: \.offset) { _, cluster in
                 HStack(spacing: 6) {
                     Circle().fill(cluster.color).frame(width: 8, height: 8)
-                    Text(cluster.label).font(.caption2)
+                    Text(cluster.label.uppercased())
+                        .font(.system(.caption2, design: .monospaced))
                 }
             }
         }
-        .padding(8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(10)
+        .background(.background)
+        .overlay(RoundedRectangle(cornerRadius: 2).stroke(.primary, lineWidth: 1))
         .padding(12)
     }
 
@@ -241,7 +243,8 @@ private struct GraphNodeView: View {
                     .multilineTextAlignment(.center)
                     .frame(width: 130)
                     .padding(4)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 4))
+                    .background(.background)
+                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(.primary, lineWidth: 1))
             }
         }
         // Hit area bigger than the visible dot, and consistent whether or not

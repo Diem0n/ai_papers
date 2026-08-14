@@ -112,13 +112,19 @@ struct BannerView: View {
     let isError: Bool
 
     var body: some View {
-        Text(text)
-            .font(.callout)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isError ? Color.red.opacity(0.12) : Color.primary.opacity(0.06))
-            .overlay(Rectangle().frame(height: 1).foregroundStyle(.separator), alignment: .bottom)
+        HStack(spacing: 8) {
+            if isError {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
+            Text(text)
+                .font(.callout)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background)
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(.primary), alignment: .bottom)
     }
 }
 

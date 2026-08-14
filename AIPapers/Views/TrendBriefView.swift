@@ -16,12 +16,22 @@ struct TrendBriefView: View {
             if let brief {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Industry Trend Brief")
-                        .font(.title2)
-                        .bold()
+                        .font(.title.bold())
+                        .tracking(-0.3)
 
                     HStack(spacing: 16) {
-                        Label(brief.generatedAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
-                        Label("Based on \(brief.paperCount) papers", systemImage: "doc.text.magnifyingglass")
+                        Label {
+                            Text(brief.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.system(.caption, design: .monospaced))
+                        } icon: {
+                            Image(systemName: "clock")
+                        }
+                        Label {
+                            Text("Based on \(brief.paperCount) papers")
+                                .font(.system(.caption, design: .monospaced))
+                        } icon: {
+                            Image(systemName: "doc.text.magnifyingglass")
+                        }
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)

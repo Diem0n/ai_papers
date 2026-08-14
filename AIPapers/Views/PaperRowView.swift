@@ -14,6 +14,7 @@ struct PaperRowView: View {
                 HStack(spacing: 6) {
                     Text(paper.title)
                         .font(.headline)
+                        .tracking(-0.2)
                         .lineLimit(2)
                     if paper.isFavorite {
                         Image(systemName: "star.fill")
@@ -31,18 +32,18 @@ struct PaperRowView: View {
                             .font(.system(.caption2, design: .monospaced))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .overlay(RoundedRectangle(cornerRadius: 3).stroke(.secondary.opacity(0.5), lineWidth: 1))
+                            .overlay(RoundedRectangle(cornerRadius: 2).stroke(.primary, lineWidth: 1))
                     }
                     if paper.summary == nil {
                         Label("No summary", systemImage: "text.badge.xmark")
-                            .font(.caption2)
+                            .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
                 }
             }
             Spacer(minLength: 8)
             if !paper.isRead {
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: 1)
                     .fill(.tint)
                     .frame(width: 8, height: 8)
                     .padding(.top, 6)
@@ -50,6 +51,6 @@ struct PaperRowView: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 4)
-        .opacity(paper.isRead ? 0.65 : 1.0)
+        .opacity(paper.isRead ? 0.6 : 1.0)
     }
 }

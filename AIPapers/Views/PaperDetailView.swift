@@ -21,17 +21,27 @@ struct PaperDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Text(paper.title)
-                    .font(.title2)
-                    .bold()
+                    .font(.title.bold())
+                    .tracking(-0.3)
 
                 Text(paper.authors)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 16) {
-                    Label(paper.publishedAt.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
+                    Label {
+                        Text(paper.publishedAt.formatted(date: .abbreviated, time: .omitted))
+                            .font(.system(.caption, design: .monospaced))
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
                     if let category = paper.category {
-                        Label(category, systemImage: "tag")
+                        Label {
+                            Text(category.uppercased())
+                                .font(.system(.caption, design: .monospaced))
+                        } icon: {
+                            Image(systemName: "tag")
+                        }
                     }
                     Label {
                         Text("\(Int(paper.relevanceScore * 100))% relevant")
