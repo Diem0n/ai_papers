@@ -8,6 +8,7 @@ import SwiftData
 
 struct ArchiveView: View {
     @Query(sort: \Paper.publishedAt, order: .reverse) private var papers: [Paper]
+    @EnvironmentObject private var appActivity: AppActivity
     @Binding var selectedPaper: Paper?
     @State private var searchText = ""
 
@@ -18,6 +19,10 @@ struct ArchiveView: View {
                 || paper.authors.localizedCaseInsensitiveContains(searchText)
                 || (paper.category ?? "").localizedCaseInsensitiveContains(searchText)
         }
+    }
+
+    private var missingSummaryCount: Int {
+        papers.filter { $0.summary == nil }.count
     }
 
     var body: some View {
@@ -39,5 +44,19 @@ struct ArchiveView: View {
         }
         .navigationTitle("Archive")
         .searchable(text: $searchText, prompt: "Search papers")
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    appActivity.summarizeAllMissing()
+                } label: {
+                    if appActivity.isSummarizingAll {
+                        ProgressView()
+                    } else {
+                        Label("Generate Summaries (\(missingSummaryCount))", systemImage: "text.badge.plus")
+                    }
+                }
+                .disabled(appActivity.isSummarizingAll || missingSummaryCount == 0)
+            }
+        }
     }
 }
