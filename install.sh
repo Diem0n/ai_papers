@@ -13,7 +13,7 @@ INSTALL_PATH="/Applications/AIPapers.app"
 echo "==> Building $SCHEME ($CONFIGURATION)"
 BUILD_DIR=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration "$CONFIGURATION" -showBuildSettings 2>/dev/null \
   | awk -F'= ' '/ BUILT_PRODUCTS_DIR /{print $2; exit}')
-xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration "$CONFIGURATION" build
+xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration "$CONFIGURATION" -allowProvisioningUpdates build
 
 BUILT_APP="$BUILD_DIR/AIPapers.app"
 if [ ! -d "$BUILT_APP" ]; then
