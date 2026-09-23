@@ -209,6 +209,22 @@ final class PaperService {
         return SimilarityService.hybridRank(queryVector: vector, queryText: query, among: try repository.allPapers(), limit: limit)
     }
 
+    /// Retrieval-augmented answer over the local archive: find the papers
+    /// closest to the question, then have the model answer from those alone.
+    func ask(_ question: String) async throws -> (answer: String, sources: [(paper: Paper, score: Double)]) {
+        let vector = try await embeddingService.embed(text: Self.queryPrefix + question)
+        let hits = SimilarityService.hybridRank(queryVector: vector, queryText: question, among: try repository.allPapers(), limit: 6)
+        let sources = hits.enumerated().map { offset, hit in
+            AskPromptSource(
+                index: offset + 1,
+                title: hit.paper.title,
+                text: String((hit.paper.summary ?? hit.paper.abstractText).replacingOccurrences(of: "\n", with: " ").prefix(900))
+            )
+        }
+        let answer = try await ollamaService.answer(question: question, sources: sources)
+        return (answer, hits)
+    }
+
     /// Papers most similar to `paper` among everything already embedded.
     func relatedPapers(to paper: Paper, limit: Int = 3) throws -> [(paper: Paper, score: Double)] {
         let allPapers = try repository.allPapers()

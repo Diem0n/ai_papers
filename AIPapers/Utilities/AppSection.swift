@@ -14,6 +14,8 @@ enum AppSection: String, CaseIterable, Identifiable {
     case graph = "Graph"
     case analytics = "Analytics"
     case trend = "Trend Brief"
+    case triage = "Triage"
+    case ask = "Ask"
 
     var id: String { rawValue }
 
@@ -24,13 +26,15 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .graph: "point.3.connected.trianglepath.dotted"
         case .analytics: "chart.bar.xaxis"
         case .trend: "text.book.closed"
+        case .triage: "bolt.horizontal"
+        case .ask: "bubble.left.and.text.bubble.right"
         }
     }
 
     /// Pages that are a full report rather than a list-plus-detail browser,
     /// so they get the whole window instead of an empty "Select a paper" pane.
     var isFullWidth: Bool {
-        self == .dashboard || self == .analytics || self == .trend
+        self != .archive && self != .graph
     }
 
     static func hidden(fromCSV csv: String) -> Set<AppSection> {

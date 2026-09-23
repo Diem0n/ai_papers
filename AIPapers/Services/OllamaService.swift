@@ -16,6 +16,13 @@ nonisolated struct OllamaSummary: Codable, Sendable, Equatable {
     let topics: [String]
 }
 
+/// A retrieved paper as the model sees it when answering a question.
+nonisolated struct AskPromptSource: Sendable {
+    let index: Int
+    let title: String
+    let text: String
+}
+
 /// One digest theme as the model sees it: what it is, and the papers in it.
 nonisolated struct DigestPromptTheme: Sendable {
     let index: Int
@@ -153,9 +160,17 @@ nonisolated final class OllamaService {
         return result
     }
 
+    /// Answers a question from the given papers only, with [n] citations.
+    func answer(question: String, sources: [AskPromptSource]) async throws -> String {
+        let text = try await generate(prompt: Self.askPrompt(question: question, sources: sources), json: false)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw OllamaServiceError.invalidResponse }
+        return trimmed
+    }
+
     /// Sends a prompt to /api/generate and returns the model's raw text.
-    private func generate(prompt: String) async throws -> String {
-        let request = try makeRequest(prompt: prompt)
+    private func generate(prompt: String, json: Bool = true) async throws -> String {
+        let request = try makeRequest(prompt: prompt, json: json)
 
         let data: Data
         let response: URLResponse
@@ -191,12 +206,14 @@ nonisolated final class OllamaService {
         }
     }
 
-    private func makeRequest(prompt: String) throws -> URLRequest {
+    private func makeRequest(prompt: String, json: Bool) throws -> URLRequest {
         let body = GenerateRequest(
             model: model,
             prompt: prompt,
             stream: false,
-            format: "json"
+            format: json ? "json" : nil,
+            // Free-text answers don't need hidden reasoning tokens first.
+            think: json ? nil : false
         )
 
         var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
@@ -266,6 +283,22 @@ nonisolated final class OllamaService {
         """
     }
 
+    private static func askPrompt(question: String, sources: [AskPromptSource]) -> String {
+        let papers = sources.map { "[\($0.index)] \($0.title)\n\($0.text)" }.joined(separator: "\n\n")
+        return """
+        You answer questions about a personal library of AI research papers.
+        Use ONLY the numbered papers below. If they don't contain the answer, say
+        so plainly instead of guessing. Cite the papers you rely on like [1] or
+        [2][3]. Be concise: at most 150 words, plain language, no hype. Do not
+        invent numbers, results, or claims.
+
+        Papers:
+        \(papers)
+
+        Question: \(question)
+        """
+    }
+
     private static func classifyPrompt(title: String, abstractText: String) -> String {
         """
         Classify this research paper into exactly one topic and one subtopic
@@ -310,7 +343,8 @@ nonisolated private struct GenerateRequest: Encodable {
     let model: String
     let prompt: String
     let stream: Bool
-    let format: String
+    let format: String?
+    let think: Bool?
 }
 
 nonisolated private struct GenerateResponse: Decodable {

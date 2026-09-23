@@ -164,6 +164,10 @@ struct ContentView: View {
                 AnalyticsView()
             case .trend:
                 TrendBriefView()
+            case .triage:
+                TriageView()
+            case .ask:
+                AskView()
             default:
                 DashboardView(onOpenSection: { selection = $0 })
             }
@@ -222,9 +226,9 @@ struct ContentView: View {
 
     private func sidebarCount(for item: AppSection) -> Int? {
         switch item {
-        case .dashboard: unreadCount > 0 ? unreadCount : nil
+        case .dashboard, .triage: unreadCount > 0 ? unreadCount : nil
         case .archive: allPapers.count
-        case .graph, .analytics, .trend: nil
+        case .graph, .analytics, .trend, .ask: nil
         }
     }
 
