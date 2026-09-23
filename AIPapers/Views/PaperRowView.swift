@@ -10,6 +10,8 @@ import SwiftUI
 
 struct PaperRowView: View {
     let paper: Paper
+    /// Set when the row is a search-by-meaning hit: how close the match is.
+    var matchScore: Double?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -39,8 +41,14 @@ struct PaperRowView: View {
                     .lineLimit(1)
 
                 HStack(spacing: 6) {
+                    if let matchScore {
+                        Text("\(Int(matchScore * 100))% match")
+                            .foregroundStyle(.tint)
+                            .fontWeight(.semibold)
+                        Text("·")
+                    }
                     Text("\(Int(paper.relevanceScore * 100))%")
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(matchScore == nil ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     Text("·")
                     Text(AnalyticsService.fixedTopic(for: paper).uppercased())
                     Text("·")

@@ -14,6 +14,13 @@ private enum SortOrder: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private enum SearchMode: String, CaseIterable, Identifiable {
+    case keyword = "Keyword"
+    case meaning = "Meaning"
+
+    var id: String { rawValue }
+}
+
 private enum DateFilter: String, CaseIterable, Identifiable {
     case allTime = "All Time"
     case today = "Today"
@@ -37,7 +44,12 @@ struct ArchiveView: View {
     @Query(sort: \Paper.publishedAt, order: .reverse) private var papers: [Paper]
     @EnvironmentObject private var appActivity: AppActivity
     @Binding var selectedPaper: Paper?
+    @Environment(\.modelContext) private var modelContext
     @State private var searchText = ""
+    @State private var searchMode: SearchMode = .keyword
+    @State private var semanticHits: [(paper: Paper, score: Double)] = []
+    @State private var isSearchingByMeaning = false
+    @State private var semanticError: String?
     @State private var sortOrder: SortOrder = .recent
     @State private var topicFilter: String?
     @State private var dateFilter: DateFilter = .allTime
@@ -59,9 +71,17 @@ struct ArchiveView: View {
         topicFilter != nil || dateFilter != .allTime || unreadOnly || favoritesOnly
     }
 
+    private var isMeaningSearch: Bool {
+        searchMode == .meaning && !searchText.isEmpty
+    }
+
+    private var matchScores: [String: Double] {
+        Dictionary(semanticHits.map { ($0.paper.id, $0.score) }, uniquingKeysWith: { first, _ in first })
+    }
+
     private var filteredPapers: [Paper] {
-        var result = papers
-        if !searchText.isEmpty {
+        var result = isMeaningSearch ? semanticHits.map(\.paper) : papers
+        if !searchText.isEmpty && !isMeaningSearch {
             result = result.filter { paper in
                 paper.title.localizedCaseInsensitiveContains(searchText)
                     || paper.authors.localizedCaseInsensitiveContains(searchText)
@@ -80,6 +100,7 @@ struct ArchiveView: View {
         if favoritesOnly {
             result = result.filter { $0.isFavorite }
         }
+        if isMeaningSearch { return result } // already ordered by how well it matches
         switch sortOrder {
         case .relevance:
             return result.sorted { $0.relevanceScore > $1.relevanceScore }
@@ -102,6 +123,15 @@ struct ArchiveView: View {
                     systemImage: "archivebox",
                     description: Text("Papers you've seen will appear here.")
                 )
+            } else if isMeaningSearch && isSearchingByMeaning {
+                ProgressView("Searching by meaning…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if isMeaningSearch && semanticHits.isEmpty {
+                ContentUnavailableView(
+                    semanticError == nil ? "Search by meaning" : "Couldn't search",
+                    systemImage: "text.magnifyingglass",
+                    description: Text(semanticError ?? "Describe what you're looking for, then press Return — e.g. \"ways to cut KV-cache memory\".")
+                )
             } else if filteredPapers.isEmpty {
                 ContentUnavailableView(
                     "No matching papers",
@@ -111,14 +141,23 @@ struct ArchiveView: View {
             } else {
                 List(selection: $selectedPaper) {
                     ForEach(filteredPapers) { paper in
-                        PaperRowView(paper: paper).tag(paper)
+                        PaperRowView(paper: paper, matchScore: isMeaningSearch ? matchScores[paper.id] : nil).tag(paper)
                     }
                 }
                 .navigationSplitViewColumnWidth(min: 360, ideal: 420)
             }
         }
         .navigationTitle(isFiltering ? "Archive (\(filteredPapers.count) of \(papers.count))" : "Archive (\(papers.count))")
-        .searchable(text: $searchText, prompt: "Search papers")
+        .navigationSubtitle(isMeaningSearch && !semanticHits.isEmpty ? "Ranked by meaning" : "")
+        .searchable(text: $searchText, prompt: searchMode == .meaning ? "Describe what you're looking for" : "Search papers")
+        .searchScopes($searchMode) {
+            ForEach(SearchMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
+            }
+        }
+        .onSubmit(of: .search) { runMeaningSearch() }
+        .onChange(of: searchText) { semanticHits = []; semanticError = nil }
+        .onChange(of: searchMode) { semanticHits = []; semanticError = nil }
         .toolbar {
             ToolbarItem {
                 filterMenu
@@ -142,6 +181,23 @@ struct ArchiveView: View {
                 }
                 .disabled(appActivity.isSummarizingAll || missingSummaryCount == 0)
             }
+        }
+    }
+
+    private func runMeaningSearch() {
+        guard searchMode == .meaning, !searchText.isEmpty else { return }
+        let query = searchText
+        isSearchingByMeaning = true
+        semanticError = nil
+        Task {
+            let service = PaperService(repository: PaperRepository(context: modelContext))
+            do {
+                let hits = try await service.semanticSearch(query)
+                if query == searchText { semanticHits = hits }
+            } catch {
+                semanticError = "Ollama isn't running, so the query couldn't be embedded. Start Ollama and try again."
+            }
+            isSearchingByMeaning = false
         }
     }
 

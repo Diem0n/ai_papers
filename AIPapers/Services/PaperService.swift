@@ -199,6 +199,16 @@ final class PaperService {
         }
     }
 
+    /// mxbai-embed-large is trained to embed *queries* with this prefix so they
+    /// land near the passages that answer them.
+    static let queryPrefix = "Represent this sentence for searching relevant passages: "
+
+    /// Search by meaning: embed the query and rank stored papers by similarity.
+    func semanticSearch(_ query: String, limit: Int = 30) async throws -> [(paper: Paper, score: Double)] {
+        let vector = try await embeddingService.embed(text: Self.queryPrefix + query)
+        return SimilarityService.hybridRank(queryVector: vector, queryText: query, among: try repository.allPapers(), limit: limit)
+    }
+
     /// Papers most similar to `paper` among everything already embedded.
     func relatedPapers(to paper: Paper, limit: Int = 3) throws -> [(paper: Paper, score: Double)] {
         let allPapers = try repository.allPapers()
