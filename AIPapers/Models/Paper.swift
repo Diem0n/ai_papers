@@ -36,6 +36,11 @@ final class Paper {
     /// the model. "Other" means it was classified and nothing on the list fit.
     var subtopic: String?
 
+    /// The reader's own workflow state (see ReadingStatus) and free-text notes
+    /// — distinct from `isRead`, which just means "has been opened".
+    var readingStatus: String?
+    var notes: String?
+
     init(
         id: String,
         title: String,
@@ -51,7 +56,9 @@ final class Paper {
         isRead: Bool = false,
         isFavorite: Bool = false,
         embedding: [Double]? = nil,
-        subtopic: String? = nil
+        subtopic: String? = nil,
+        readingStatus: String? = nil,
+        notes: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -68,5 +75,7 @@ final class Paper {
         self.isFavorite = isFavorite
         self.embedding = embedding
         self.subtopic = subtopic
+        self.readingStatus = readingStatus
+        self.notes = notes
     }
 }

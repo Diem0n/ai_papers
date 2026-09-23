@@ -131,7 +131,7 @@ struct DashboardView: View {
                 }
                 HStack(alignment: .top, spacing: gap) {
                     briefCard(lines: lineCount(fitting: right[2])).frame(height: right[2])
-                    graphCard.frame(height: right[2])
+                    readingListCard(rows: rowCount(fitting: right[2])).frame(height: right[2])
                 }
             }
             .frame(maxWidth: .infinity)
@@ -288,15 +288,34 @@ struct DashboardView: View {
         }
     }
 
-    private var graphCard: some View {
-        BentoCard(title: "Knowledge graph", action: { onOpenSection(.graph) }) {
-            VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: "point.3.connected.trianglepath.dotted")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.tint)
-                Text("See how papers cluster by semantic similarity, and open any node.")
+    private func readingListCard(rows: Int) -> some View {
+        let queue = allPapers.filter { $0.status == .reading || $0.status == .toRead }
+            .sorted { ($0.status == .reading ? 0 : 1) < ($1.status == .reading ? 0 : 1) }
+        return BentoCard(title: "Reading list", action: { onOpenSection(.archive) }) {
+            if queue.isEmpty {
+                Text("Mark a paper To read or Reading in its detail view and it lands here.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(queue.prefix(max(2, rows - 1)).enumerated()), id: \.element.id) { index, paper in
+                        if index > 0 { Divider() }
+                        Button { open(paper) } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: paper.status?.systemImage ?? "bookmark")
+                                    .foregroundStyle(paper.status == .reading ? Color.accentColor : .secondary)
+                                Text(paper.title)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
     }

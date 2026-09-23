@@ -52,6 +52,7 @@ struct ArchiveView: View {
     @State private var semanticError: String?
     @State private var sortOrder: SortOrder = .recent
     @State private var topicFilter: String?
+    @State private var statusFilter: ReadingStatus?
     @State private var dateFilter: DateFilter = .allTime
     @State private var unreadOnly = false
     @State private var favoritesOnly = false
@@ -68,7 +69,7 @@ struct ArchiveView: View {
     }
 
     private var isFiltering: Bool {
-        topicFilter != nil || dateFilter != .allTime || unreadOnly || favoritesOnly
+        topicFilter != nil || statusFilter != nil || dateFilter != .allTime || unreadOnly || favoritesOnly
     }
 
     private var isMeaningSearch: Bool {
@@ -86,10 +87,14 @@ struct ArchiveView: View {
                 paper.title.localizedCaseInsensitiveContains(searchText)
                     || paper.authors.localizedCaseInsensitiveContains(searchText)
                     || (paper.category ?? "").localizedCaseInsensitiveContains(searchText)
+                    || (paper.notes ?? "").localizedCaseInsensitiveContains(searchText)
             }
         }
         if let topicFilter {
             result = result.filter { AnalyticsService.fixedTopic(for: $0) == topicFilter }
+        }
+        if let statusFilter {
+            result = result.filter { $0.status == statusFilter }
         }
         if dateFilter != .allTime {
             result = result.filter { dateFilter.matches($0.discoveredAt) }
@@ -229,6 +234,14 @@ struct ArchiveView: View {
                     }
                 }
             }
+            Section("Reading status") {
+                Picker("Reading status", selection: $statusFilter) {
+                    Text("Any").tag(ReadingStatus?.none)
+                    ForEach(ReadingStatus.allCases) { status in
+                        Label(status.rawValue, systemImage: status.systemImage).tag(ReadingStatus?.some(status))
+                    }
+                }
+            }
             Section("Pulled") {
                 Picker("Pulled", selection: $dateFilter) {
                     ForEach(DateFilter.allCases) { filter in
@@ -244,6 +257,7 @@ struct ArchiveView: View {
                 Section {
                     Button("Clear Filters", role: .destructive) {
                         topicFilter = nil
+                        statusFilter = nil
                         dateFilter = .allTime
                         unreadOnly = false
                         favoritesOnly = false

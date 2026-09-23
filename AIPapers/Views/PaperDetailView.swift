@@ -31,6 +31,8 @@ struct PaperDetailView: View {
 
                 Divider()
 
+                workspaceSection
+
                 summarySection
 
                 section("Abstract", text: paper.abstractText)
@@ -62,6 +64,43 @@ struct PaperDetailView: View {
         }
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(.secondary)
+    }
+
+    /// The reader's own layer: where this paper is in their queue, and what they thought.
+    private var workspaceSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader("Your reading")
+            Picker("Status", selection: Binding(
+                get: { paper.status },
+                set: { paper.status = $0 }
+            )) {
+                Text("None").tag(ReadingStatus?.none)
+                ForEach(ReadingStatus.allCases) { status in
+                    Label(status.rawValue, systemImage: status.systemImage).tag(ReadingStatus?.some(status))
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: Binding(
+                    get: { paper.notes ?? "" },
+                    set: { paper.notes = $0.isEmpty ? nil : $0 }
+                ))
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .frame(minHeight: 90)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                if (paper.notes ?? "").isEmpty {
+                    Text("Notes — what's worth remembering, what to try…")
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 14)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
     }
 
     @ViewBuilder

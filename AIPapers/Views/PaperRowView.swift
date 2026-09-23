@@ -29,6 +29,16 @@ struct PaperRowView: View {
                             .foregroundStyle(.tint)
                     }
                     Spacer(minLength: 8)
+                    if let status = paper.status {
+                        Label(status.rawValue, systemImage: status.systemImage)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(status == .done ? Color.secondary : Color.accentColor)
+                    }
+                    if !(paper.notes ?? "").isEmpty {
+                        Image(systemName: "note.text")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if !paper.isRead {
                         Circle()
                             .fill(.tint)
