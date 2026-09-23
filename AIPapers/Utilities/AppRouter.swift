@@ -14,6 +14,9 @@ final class AppRouter: ObservableObject {
     @Published var pendingPaperID: String?
     @Published var pendingTrendOpen = false
     @Published var pendingSection: AppSection?
+    /// Bumped by the Ask command (⌘K): focuses the dashboard's Ask card, or
+    /// toggles the floating panel on any other page.
+    @Published var askTick = 0
 
     func handle(_ url: URL) {
         guard url.scheme == "aipapers" else { return }

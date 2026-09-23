@@ -19,6 +19,9 @@ private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "Dashboa
 
 struct DashboardView: View {
     @EnvironmentObject private var appActivity: AppActivity
+    @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var session: AskSession
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Paper.relevanceScore, order: .reverse) private var allPapers: [Paper]
 
     let onOpenSection: (AppSection) -> Void
@@ -26,6 +29,12 @@ struct DashboardView: View {
     @State private var brief: TrendBrief?
     @State private var selectedPaper: Paper?
     @State private var inspectorShown = false
+    @State private var picks: [Pick] = []
+    @State private var isPicking = false
+    @State private var picksPersonalized = true
+    @State private var askInput = ""
+    @State private var askBlink = 0
+    @FocusState private var askFocused: Bool
 
     private let gap: CGFloat = 12
     private let pagePadding: CGFloat = 20
@@ -80,6 +89,14 @@ struct DashboardView: View {
             appActivity.autoRefreshIfNeeded()
         }
         .onAppear { brief = TrendBriefStore.loadLatest() }
+        .onChange(of: router.askTick) { askFocused = true }
+        .task(id: picksKey) { await refreshPicks(force: false) }
+    }
+
+    /// Cheap stand-in for "did what you've read/favorited change" — recomputing
+    /// the picks costs a pass over every embedding, so it's keyed on counts.
+    private var picksKey: String {
+        "\(allPapers.count)-\(allPapers.filter(\.isRead).count)-\(allPapers.filter(\.isFavorite).count)-\(allPapers.filter { $0.readingStatus != nil }.count)"
     }
 
     @ViewBuilder
@@ -114,24 +131,23 @@ struct DashboardView: View {
     }
 
     private func mainGrid(height: CGFloat) -> some View {
-        let left = split(height, [0.62, 0.38])
-        let right = split(height, [0.28, 0.36, 0.36])
+        let left = split(height, [0.42, 0.58])
+        let right = split(height, [0.34, 0.66])
         return HStack(alignment: .top, spacing: gap) {
             VStack(spacing: gap) {
                 topPapersCard(rows: rowCount(fitting: left[0])).frame(height: left[0])
-                recentCard(rows: rowCount(fitting: left[1])).frame(height: left[1])
+                picksCard.frame(height: left[1])
             }
             .frame(maxWidth: .infinity)
 
             VStack(spacing: gap) {
-                pulledCard.frame(height: right[0])
                 HStack(alignment: .top, spacing: gap) {
-                    topicsCard.frame(height: right[1])
-                    trendingCard.frame(height: right[1])
+                    topicsCard.frame(height: right[0])
+                    trendingCard.frame(height: right[0])
                 }
                 HStack(alignment: .top, spacing: gap) {
-                    briefCard(lines: lineCount(fitting: right[2])).frame(height: right[2])
-                    readingListCard(rows: rowCount(fitting: right[2])).frame(height: right[2])
+                    briefCard(lines: lineCount(fitting: right[1])).frame(height: right[1])
+                    askCard.frame(height: right[1])
                 }
             }
             .frame(maxWidth: .infinity)
@@ -175,17 +191,12 @@ struct DashboardView: View {
     // MARK: Cards
 
     private func topPapersCard(rows: Int) -> some View {
-        let unread = allPapers.filter { !$0.isRead }
+        // The picks card already features some unread papers; don't show the same ones twice.
+        let picked = Set(picks.map(\.id))
+        let unread = allPapers.filter { !$0.isRead && !picked.contains($0.id) }
         let papers = Array((unread.isEmpty ? allPapers : unread).prefix(rows))
         return BentoCard(title: "Top unread", action: { onOpenSection(.archive) }) {
             paperList(papers)
-        }
-    }
-
-    private func recentCard(rows: Int) -> some View {
-        let recent = Array(allPapers.sorted { $0.discoveredAt > $1.discoveredAt }.prefix(rows))
-        return BentoCard(title: "Recently pulled", action: { onOpenSection(.archive) }) {
-            paperList(recent, showsDate: true)
         }
     }
 
@@ -224,17 +235,6 @@ struct DashboardView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var pulledCard: some View {
-        BentoCard(title: "Papers pulled", action: { onOpenSection(.analytics) }) {
-            Chart(AnalyticsService.papersPerDay(allPapers)) { day in
-                BarMark(x: .value("Date", day.date, unit: .day), y: .value("Papers", day.count))
-                    .foregroundStyle(.tint)
-            }
-            .chartYAxis(.hidden)
-            .frame(maxHeight: .infinity)
-        }
     }
 
     private var topicsCard: some View {
@@ -288,36 +288,232 @@ struct DashboardView: View {
         }
     }
 
-    private func readingListCard(rows: Int) -> some View {
-        let queue = allPapers.filter { $0.status == .reading || $0.status == .toRead }
-            .sorted { ($0.status == .reading ? 0 : 1) < ($1.status == .reading ? 0 : 1) }
-        return BentoCard(title: "Reading list", action: { onOpenSection(.archive) }) {
-            if queue.isEmpty {
-                Text("Mark a paper To read or Reading in its detail view and it lands here.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+    // MARK: Picks
+
+    /// Five unread papers chosen from what you've favorited and read. Every
+    /// thin case still resolves to something sensible: with no history it's
+    /// the most relevant unread papers (and says so), with under five unread
+    /// it shows what there is, and if the model is unavailable the picks are
+    /// the same shortlist with reasons taken from the data.
+    private var picksCard: some View {
+        BentoCard(title: "Picks for you", action: { onOpenSection(.archive) }) {
+            if picks.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 30))
+                        .foregroundStyle(.tint)
+                    Text("You're all caught up.")
+                        .font(.callout.weight(.semibold))
+                    Text("Nothing unread right now — new picks appear after the next refresh.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(queue.prefix(max(2, rows - 1)).enumerated()), id: \.element.id) { index, paper in
-                        if index > 0 { Divider() }
-                        Button { open(paper) } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: paper.status?.systemImage ?? "bookmark")
-                                    .foregroundStyle(paper.status == .reading ? Color.accentColor : .secondary)
-                                Text(paper.title)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(picks.enumerated()), id: \.element.id) { index, pick in
+                                if index > 0 { Divider() }
+                                pickRow(pick)
                             }
-                            .padding(.vertical, 5)
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
                     }
+                    HStack(spacing: 8) {
+                        if isPicking {
+                            ProgressView().controlSize(.small)
+                            Text("Choosing for you…").font(.caption).foregroundStyle(.secondary)
+                        } else if !picksPersonalized {
+                            Text("Favorite or finish a few papers and these picks get personal.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button {
+                                Task { await refreshPicks(force: true) }
+                            } label: {
+                                Label("Re-pick", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.tint)
+                        }
+                        Spacer()
+                    }
+                    .padding(.top, 6)
                 }
             }
         }
+    }
+
+    private func pickRow(_ pick: Pick) -> some View {
+        Button { open(pick.paper) } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(pick.paper.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(pick.reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 6)
+            .background(selectedPaper?.id == pick.paper.id ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func refreshPicks(force: Bool) async {
+        let pool = PicksService.pool(from: allPapers)
+        picksPersonalized = pool.isPersonalized
+        // Instant, model-free picks first; the model's choice replaces them when it lands.
+        picks = PicksService.fallbackPicks(pool)
+        guard pool.isPersonalized, pool.candidates.count > 1 else { return }
+
+        if !force, let cached = PicksStore.load(), cached.signature == pool.signature {
+            picks = PicksService.restore(cached.picks.map { (id: $0.id, why: $0.why) }, in: pool)
+            return
+        }
+
+        isPicking = true
+        defer { isPicking = false }
+        let liked = pool.liked.prefix(8).map(\.title)
+        let candidates = pool.candidates.enumerated().map { offset, candidate in
+            let synopsis = (candidate.paper.summary ?? candidate.paper.abstractText)
+                .replacingOccurrences(of: "\n", with: " ")
+            return "\(offset + 1). \(candidate.paper.title) — \(String(synopsis.prefix(160)))"
+        }
+        do {
+            let chosen = try await OllamaService().pickPapers(liked: Array(liked), candidates: candidates)
+            let result = PicksService.resolve(chosen, in: pool)
+            PicksStore.save(PicksCache(
+                signature: pool.signature,
+                model: AppSettings.ollamaModel,
+                generatedAt: .now,
+                picks: result.map { PicksCache.Entry(id: $0.paper.id, why: $0.reason) }
+            ))
+            picks = result
+        } catch {
+            // Ollama down or a malformed answer: the model-free picks above stay.
+        }
+    }
+
+    // MARK: Ask
+
+    private var askSuggestions: [String] {
+        AnalyticsService.topCategories(allPapers, limit: 2)
+            .map(\.category)
+            .filter { $0 != Taxonomy.uncategorized }
+            .map { "What's new in \($0)?" }
+    }
+
+    /// Ask lives here, right on the dashboard: the answer is written in the
+    /// card, and the input line at the bottom is the whole interface.
+    private var askCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                PixelEyeLogo(size: 22, blinkTrigger: askBlink)
+                Text("ASK YOUR ARCHIVE")
+                    .font(.system(.caption, design: .monospaced, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !session.turns.isEmpty && !session.isBusy {
+                    Button("Clear") { session.clear() }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+                }
+            }
+
+            askBody
+
+            Divider()
+            HStack(spacing: 8) {
+                TextField("Ask about your papers…", text: $askInput)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($askFocused)
+                    .onSubmit(sendAsk)
+                    .disabled(session.isBusy)
+                Button(action: sendAsk) {
+                    Image(systemName: "arrow.up.circle.fill").font(.title2)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+                .disabled(session.isBusy || askInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .bentoBackground()
+        .clipped()
+        .onHover { if $0 { askBlink += 1 } }
+        .onChange(of: session.turns.last?.isWorking) { _, working in
+            if working == false { askBlink += 1 }
+        }
+    }
+
+    @ViewBuilder
+    private var askBody: some View {
+        if let turn = session.turns.last {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(turn.question)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if turn.isWorking {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Searching your papers…").font(.callout).foregroundStyle(.secondary)
+                    }
+                } else if let error = turn.error {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else if let answer = turn.answer {
+                    ScrollView {
+                        Text(answer)
+                            .font(.callout)
+                            .lineSpacing(3)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack(spacing: 6) {
+                        Text("SOURCES")
+                            .font(.system(.caption2, design: .monospaced, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(Array(turn.sources.enumerated()), id: \.element.paper.id) { index, source in
+                            Button("[\(index + 1)]") { open(source.paper) }
+                                .buttonStyle(.plain)
+                                .font(.system(.caption, design: .monospaced, weight: .bold))
+                                .foregroundStyle(.tint)
+                                .help(source.paper.title)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Ask about anything you've saved. Answers come only from your papers, with citations.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                ForEach(askSuggestions, id: \.self) { suggestion in
+                    Button(suggestion) { session.ask(suggestion, context: modelContext) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private func sendAsk() {
+        session.ask(askInput, context: modelContext)
+        askInput = ""
     }
 
     // MARK: Empty state

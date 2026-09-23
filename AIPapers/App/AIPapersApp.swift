@@ -13,6 +13,7 @@ struct AIPapersApp: App {
     let modelContainer: ModelContainer
     @StateObject private var router = AppRouter()
     @StateObject private var appActivity: AppActivity
+    @StateObject private var askSession = AskSession()
 
     init() {
         // Built once here (not as two separate default-initialized properties)
@@ -29,6 +30,7 @@ struct AIPapersApp: App {
             ContentView()
                 .environmentObject(router)
                 .environmentObject(appActivity)
+                .environmentObject(askSession)
                 .onOpenURL { url in
                     router.handle(url)
                 }
@@ -41,6 +43,9 @@ struct AIPapersApp: App {
                     Button(section.rawValue) { router.pendingSection = section }
                         .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
                 }
+                Divider()
+                Button("Ask Your Archive") { router.askTick += 1 }
+                    .keyboardShortcut("k", modifiers: .command)
             }
         }
 

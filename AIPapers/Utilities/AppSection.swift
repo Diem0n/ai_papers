@@ -15,7 +15,6 @@ enum AppSection: String, CaseIterable, Identifiable {
     case analytics = "Analytics"
     case trend = "Trend Brief"
     case triage = "Triage"
-    case ask = "Ask"
 
     var id: String { rawValue }
 
@@ -27,7 +26,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .analytics: "chart.bar.xaxis"
         case .trend: "text.book.closed"
         case .triage: "bolt.horizontal"
-        case .ask: "bubble.left.and.text.bubble.right"
         }
     }
 

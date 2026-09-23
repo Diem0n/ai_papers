@@ -57,6 +57,45 @@ private struct SectionSwitcher: ViewModifier {
     }
 }
 
+/// The Ask entry point on every page but the dashboard (which has its own
+/// card): a circle in the bottom-right corner holding the eye logo. The eye
+/// blinks when the pointer lands on it.
+private struct AskFloatingButton: View {
+    @Binding var isOpen: Bool
+    let onOpenPaper: (Paper) -> Void
+
+    @EnvironmentObject private var session: AskSession
+    @State private var blink = 0
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            isOpen.toggle()
+        } label: {
+            PixelEyeLogo(size: 32, blinkTrigger: blink)
+                .frame(width: 60, height: 60)
+                .background(.regularMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(hovering || isOpen ? AnyShapeStyle(.tint) : AnyShapeStyle(.quaternary), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.25), radius: hovering ? 10 : 6, y: 3)
+                .scaleEffect(hovering ? 1.06 : 1)
+                .animation(.easeOut(duration: 0.15), value: hovering)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering in
+            hovering = isHovering
+            if isHovering { blink += 1 }
+        }
+        // A finished answer gets a blink too, so it's noticeable with the panel closed.
+        .onChange(of: session.turns.last?.isWorking) { _, working in
+            if working == false { blink += 1 }
+        }
+        .help("Ask your archive (⌘K)")
+        .popover(isPresented: $isOpen, arrowEdge: .top) {
+            AskChatView(onOpenPaper: onOpenPaper)
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var router: AppRouter
@@ -70,6 +109,7 @@ struct ContentView: View {
     @State private var selection: AppSection? = .dashboard
     @State private var selectedPaper: Paper?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var askOpen = false
 
     private var navigationStyle: NavigationStyle {
         NavigationStyle(rawValue: navigationStyleRaw) ?? .sidebar
@@ -91,6 +131,12 @@ struct ContentView: View {
             statusBanner
             layout
         }
+        .overlay(alignment: .bottomTrailing) {
+            if selection != .dashboard {
+                AskFloatingButton(isOpen: $askOpen, onOpenPaper: openPaperInArchive)
+                    .padding(22)
+            }
+        }
         .onAppear(perform: syncSidebarVisibility)
         .onChange(of: selection, updateColumnVisibility)
         .onChange(of: sidebarVisibleByDefault) { syncSidebarVisibility() }
@@ -98,6 +144,7 @@ struct ContentView: View {
         .onChange(of: router.pendingPaperID, handlePendingPaperID)
         .onChange(of: router.pendingTrendOpen, handlePendingTrendOpen)
         .onChange(of: router.pendingSection, handlePendingSection)
+        .onChange(of: router.askTick) { if selection != .dashboard { askOpen.toggle() } }
     }
 
     // MARK: Layout
@@ -137,11 +184,15 @@ struct ContentView: View {
                 fullWidthPage
             }
         } else {
+            // The section switcher is attached to the split view itself, i.e. to
+            // the whole window's toolbar — on the list column it had only that
+            // column's width to fit in and collapsed into an overflow menu.
             NavigationSplitView {
                 contentColumn
             } detail: {
                 detailColumn
             }
+            .modifier(SectionSwitcher(isActive: true, sections: visibleSections, selection: $selection))
         }
     }
 
@@ -166,8 +217,6 @@ struct ContentView: View {
                 TrendBriefView()
             case .triage:
                 TriageView()
-            case .ask:
-                AskView()
             default:
                 DashboardView(onOpenSection: { selection = $0 })
             }
@@ -188,7 +237,9 @@ struct ContentView: View {
                 EmptyView() // dashboard, analytics and trend brief are handled by fullWidthPage
             }
         }
-        .modifier(SectionSwitcher(isActive: navigationStyle == .tabs, sections: visibleSections, selection: $selection))
+        // Set here, on the column itself, so the list can never be dragged (and
+        // then remembered) down to a sliver — the split view restores saved widths.
+        .navigationSplitViewColumnWidth(min: 380, ideal: selection == .graph ? 700 : 460, max: 1100)
     }
 
     @ViewBuilder
@@ -228,7 +279,7 @@ struct ContentView: View {
         switch item {
         case .dashboard, .triage: unreadCount > 0 ? unreadCount : nil
         case .archive: allPapers.count
-        case .graph, .analytics, .trend, .ask: nil
+        case .graph, .analytics, .trend: nil
         }
     }
 
@@ -273,6 +324,13 @@ struct ContentView: View {
         guard shouldOpen else { return }
         selection = .trend
         router.pendingTrendOpen = false
+    }
+
+    /// A paper picked from the Ask panel opens where there's a detail pane.
+    private func openPaperInArchive(_ paper: Paper) {
+        selectedPaper = paper
+        selection = .archive
+        askOpen = false
     }
 
     private func openPaper(id: String) {

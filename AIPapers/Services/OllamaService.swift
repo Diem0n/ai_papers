@@ -16,6 +16,14 @@ nonisolated struct OllamaSummary: Codable, Sendable, Equatable {
     let topics: [String]
 }
 
+nonisolated private struct PickResponse: Decodable {
+    struct Choice: Decodable {
+        let n: Int
+        let why: String
+    }
+    let picks: [Choice]
+}
+
 /// A retrieved paper as the model sees it when answering a question.
 nonisolated struct AskPromptSource: Sendable {
     let index: Int
@@ -168,6 +176,18 @@ nonisolated final class OllamaService {
         return trimmed
     }
 
+    /// Chooses the papers most worth reading next from a numbered shortlist,
+    /// given papers the reader engaged with. Returns 1-based shortlist numbers
+    /// with a short reason; the caller validates them against the shortlist.
+    func pickPapers(liked: [String], candidates: [String], count: Int = 5) async throws -> [(number: Int, why: String)] {
+        let raw = try await generate(prompt: Self.picksPrompt(liked: liked, candidates: candidates, count: count))
+        guard let data = raw.data(using: .utf8),
+              let response = try? JSONDecoder().decode(PickResponse.self, from: data) else {
+            throw OllamaServiceError.malformedContent(raw: raw)
+        }
+        return response.picks.map { (number: $0.n, why: $0.why) }
+    }
+
     /// Sends a prompt to /api/generate and returns the model's raw text.
     private func generate(prompt: String, json: Bool = true) async throws -> String {
         let request = try makeRequest(prompt: prompt, json: json)
@@ -280,6 +300,25 @@ nonisolated final class OllamaService {
           ]
         }
         Include one entry per theme, using the theme's index number.
+        """
+    }
+
+    private static func picksPrompt(liked: [String], candidates: [String], count: Int) -> String {
+        """
+        You recommend what a busy AI engineer should read next.
+
+        Papers they favorited, finished or opened (their taste):
+        \(liked.map { "- \($0)" }.joined(separator: "\n"))
+
+        Candidate papers, numbered:
+        \(candidates.joined(separator: "\n"))
+
+        Choose the \(count) candidates most worth their time given that taste. Prefer
+        variety over five near-duplicates. For each, give a reason of at most 14 words
+        that points to what they liked. Use only the information above; invent nothing.
+
+        Respond with ONLY a JSON object in exactly this shape:
+        {"picks": [{"n": <candidate number>, "why": "<short reason>"}]}
         """
     }
 
