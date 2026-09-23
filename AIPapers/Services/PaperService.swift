@@ -94,10 +94,9 @@ final class PaperService {
             WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
         }
 
-        if !wasPaused {
-            await generateTrendBriefIfNeeded(onProgress: onProgress)
-        }
-
+        // The daily trend brief is deliberately not awaited here: it's a ~40s
+        // model call that used to hold the refresh spinner long after every
+        // paper was already saved and usable. AppActivity runs it afterwards.
         return RefreshResult(papersAdded: insertedPapers.count, wasPaused: wasPaused)
     }
 
@@ -168,11 +167,11 @@ final class PaperService {
 
     /// Assigns a topic and subtopic from the fixed taxonomy via the model,
     /// without generating a full summary. A stored topic is kept and only the
-    /// subtopic is asked. Only throws when Ollama itself is unreachable, so a
+    /// subtopic is asked, unless `reclassify` asks for both again. Only throws when Ollama itself is unreachable, so a
     /// batch caller can stop instead of grinding through dozens of failures.
-    func categorize(_ paper: Paper) async throws {
+    func categorize(_ paper: Paper, reclassify: Bool = false) async throws {
         do {
-            let known = AnalyticsService.storedTopic(paper)
+            let known = reclassify ? nil : AnalyticsService.storedTopic(paper)
             guard let result = try await ollamaService.classify(title: paper.title, abstractText: paper.abstractText, knownTopic: known) else { return }
             paper.category = result.topic
             paper.subtopic = result.subtopic

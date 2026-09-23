@@ -40,6 +40,7 @@ final class AppActivity: ObservableObject {
     @Published var failedSummaryPaperIDs: Set<String> = []
 
     private var hasAutoRefreshed = false
+    private var isWritingBrief = false
     private let modelContainer: ModelContainer
     private var refreshTask: Task<Void, Never>?
     private var summarizeTask: Task<Void, Never>?
@@ -63,16 +64,9 @@ final class AppActivity: ObservableObject {
         let refreshedToday = (try? repository.allPapers().contains { Calendar.current.isDateInToday($0.discoveredAt) }) ?? false
 
         if refreshedToday {
-            // arXiv doesn't need hitting again today, but the trend brief is a
-            // separate daily concern — don't let it ride on that check too.
-            guard !isRefreshing else { return }
-            isRefreshing = true
-            refreshTask = Task {
-                let service = self.makeService()
-                await service.generateTrendBriefIfNeeded { stage in self.refreshProgressText = stage }
-                self.isRefreshing = false
-                self.refreshProgressText = nil
-            }
+            // arXiv doesn't need hitting again today, but the daily brief is a
+            // separate concern — write it quietly, without a loading state.
+            writeDailyBriefInBackground()
         } else {
             refresh()
         }
@@ -106,6 +100,18 @@ final class AppActivity: ObservableObject {
             }
             self.isRefreshing = false
             self.refreshProgressText = nil
+            self.writeDailyBriefInBackground()
+        }
+    }
+
+    /// The daily trend brief is a long model call (~40s). It never blocks
+    /// refresh or shows as "loading": papers are usable the moment they're saved.
+    private func writeDailyBriefInBackground() {
+        guard !isWritingBrief else { return }
+        isWritingBrief = true
+        Task {
+            await self.makeService().generateTrendBriefIfNeeded()
+            self.isWritingBrief = false
         }
     }
 
@@ -141,8 +147,10 @@ final class AppActivity: ObservableObject {
         }
     }
 
-    /// Backfills the fixed-list topic for every paper that doesn't have one yet.
-    func categorizeAll() {
+    /// Backfills topic and subtopic for every paper that lacks them — or,
+    /// with `reclassifyAll`, decides both again for every paper (e.g. after
+    /// switching to a better model).
+    func categorizeAll(reclassifyAll: Bool = false) {
         guard !isCategorizing else { return }
         isCategorizing = true
         categorizeCompleted = 0
@@ -153,13 +161,14 @@ final class AppActivity: ObservableObject {
             let context = ModelContext(self.modelContainer)
             let repository = PaperRepository(context: context)
             let service = PaperService(repository: repository)
-            let pending = ((try? repository.allPapers()) ?? []).filter { !AnalyticsService.isClassified($0) }
+            let everything = (try? repository.allPapers()) ?? []
+            let pending = reclassifyAll ? everything : everything.filter { !AnalyticsService.isClassified($0) }
 
             self.categorizeTotal = pending.count
             for paper in pending {
                 if Task.isCancelled { break }
                 do {
-                    try await service.categorize(paper)
+                    try await service.categorize(paper, reclassify: reclassifyAll)
                 } catch {
                     if !Task.isCancelled {
                         self.refreshErrorMessage = "Ollama isn't running. Start Ollama and try again."

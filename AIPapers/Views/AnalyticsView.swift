@@ -14,6 +14,7 @@ import Charts
 struct AnalyticsView: View {
     @Query private var papers: [Paper]
     @EnvironmentObject private var appActivity: AppActivity
+    @State private var confirmRecategorize = false
 
     private var uncategorizedCount: Int {
         papers.filter { !AnalyticsService.isClassified($0) }.count
@@ -107,12 +108,28 @@ struct AnalyticsView: View {
                 Label("Stop Categorizing", systemImage: "stop.fill")
             }
         } else {
-            Button {
-                appActivity.categorizeAll()
+            Menu {
+                Button("Categorize new papers (\(uncategorizedCount))") {
+                    appActivity.categorizeAll()
+                }
+                .disabled(uncategorizedCount == 0)
+                Button("Re-categorize all \(papers.count) papers…") {
+                    confirmRecategorize = true
+                }
             } label: {
-                Label("Categorize with LLM (\(uncategorizedCount))", systemImage: "tag")
+                Label("Categorize with LLM", systemImage: "tag")
             }
-            .disabled(uncategorizedCount == 0)
+            .confirmationDialog(
+                "Re-categorize all \(papers.count) papers with \(AppSettings.ollamaModel)?",
+                isPresented: $confirmRecategorize,
+                titleVisibility: .visible
+            ) {
+                Button("Re-categorize All", role: .destructive) {
+                    appActivity.categorizeAll(reclassifyAll: true)
+                }
+            } message: {
+                Text("This replaces every stored topic and subtopic and takes a few minutes. Your papers, notes and read state aren't touched.")
+            }
         }
     }
 
