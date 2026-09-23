@@ -16,6 +16,25 @@ nonisolated struct OllamaSummary: Codable, Sendable, Equatable {
     let topics: [String]
 }
 
+/// One digest theme as the model sees it: what it is, and the papers in it.
+nonisolated struct DigestPromptTheme: Sendable {
+    let index: Int
+    let label: String
+    let keywords: [String]
+    let papers: [String]   // "Title — synopsis"
+}
+
+nonisolated struct DigestNarrativeResult: Decodable, Sendable {
+    struct Theme: Decodable, Sendable {
+        let index: Int
+        let headline: String
+        let takeaway: String
+        let soWhat: String
+    }
+    let tldr: String
+    let themes: [Theme]
+}
+
 nonisolated struct OllamaClassification: Sendable, Equatable {
     let topic: String
     let subtopic: String
@@ -123,6 +142,17 @@ nonisolated final class OllamaService {
         return OllamaClassification(topic: topic.name, subtopic: subtopic)
     }
 
+    /// Short plain-language text for each already-found theme. The model
+    /// describes; it does not decide what the themes are.
+    func synthesizeDigest(themes: [DigestPromptTheme]) async throws -> DigestNarrativeResult {
+        let raw = try await generate(prompt: Self.digestPrompt(themes: themes))
+        guard let data = raw.data(using: .utf8),
+              let result = try? JSONDecoder().decode(DigestNarrativeResult.self, from: data) else {
+            throw OllamaServiceError.malformedContent(raw: raw)
+        }
+        return result
+    }
+
     /// Sends a prompt to /api/generate and returns the model's raw text.
     private func generate(prompt: String) async throws -> String {
         let request = try makeRequest(prompt: prompt)
@@ -199,6 +229,40 @@ nonisolated final class OllamaService {
         as shown (1 to 3 of them, most relevant first). Prefer the most specific topic:
         \(Taxonomy.promptList)
         Do not invent topics outside this list.
+        """
+    }
+
+    private static func digestPrompt(themes: [DigestPromptTheme]) -> String {
+        let blocks = themes.map { theme in
+            """
+            Theme \(theme.index): \(theme.label)
+            Distinctive terms: \(theme.keywords.joined(separator: ", "))
+            Papers:
+            \(theme.papers.map { "- \($0)" }.joined(separator: "\n"))
+            """
+        }.joined(separator: "\n\n")
+
+        return """
+        You write a fast-to-scan weekly digest of new AI research for a busy AI engineer.
+        Below are themes that were already found by clustering the papers; describe them,
+        do not invent new ones. Use only the titles and synopses given. Do not invent
+        numbers, results, or claims. Plain words, no hype, no jargon you can avoid.
+
+        \(blocks)
+
+        Respond with ONLY a JSON object in exactly this shape:
+        {
+          "tldr": "ONE sentence, at most 30 words: the single most important shift across all themes",
+          "themes": [
+            {
+              "index": 0,
+              "headline": "at most 8 words, a plain-language title for the theme",
+              "takeaway": "one or two short sentences: what these papers are doing",
+              "soWhat": "one sentence: what an AI engineer should do or watch because of it"
+            }
+          ]
+        }
+        Include one entry per theme, using the theme's index number.
         """
     }
 
