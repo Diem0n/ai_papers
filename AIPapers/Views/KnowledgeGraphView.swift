@@ -28,10 +28,11 @@ private struct GraphCluster {
     let color: Color
 }
 
+private let maxGraphNodes = 50 // beyond this, the force-directed layout has nowhere to put nodes but a packed grid
+
 struct KnowledgeGraphView: View {
     @Query private var allPapers: [Paper]
     @Binding var selectedPaper: Paper?
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var nodePositions: [String: CGPoint] = [:]
     @State private var edges: [GraphEdge] = []
@@ -41,14 +42,22 @@ struct KnowledgeGraphView: View {
     @State private var lastLayoutSize: CGSize = .zero
     @State private var hoveredPaperID: String?
 
+    /// Capped and biased toward what you'd actually want to see connections
+    /// between — most relevant first — rather than every paper ever embedded.
     private var embeddedPapers: [Paper] {
-        allPapers.filter { $0.embedding != nil }
+        Array(
+            allPapers
+                .filter { $0.embedding != nil }
+                .sorted { $0.relevanceScore > $1.relevanceScore }
+                .prefix(maxGraphNodes)
+        )
     }
 
+    /// System colors, not hand-picked hex — they already adapt to light/dark,
+    /// and leading with the app's own accent ties the graph back to the rest
+    /// of the UI instead of feeling like a bolted-on visualization.
     private var clusterPalette: [Color] {
-        colorScheme == .dark
-            ? [Color(hex: "#3987e5"), Color(hex: "#d95926"), Color(hex: "#199e70")]
-            : [Color(hex: "#2a78d6"), Color(hex: "#eb6834"), Color(hex: "#1baf7a")]
+        [.accentColor, .orange, .teal]
     }
 
     var body: some View {
@@ -62,8 +71,9 @@ struct KnowledgeGraphView: View {
                                 Text(topic.uppercased())
                                     .font(.system(size: 8, design: .monospaced))
                                     .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 3)
-                                    .background(.background)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(.regularMaterial, in: Capsule())
                                     .position(midpoint)
                             }
                         }
@@ -129,18 +139,18 @@ struct KnowledgeGraphView: View {
     }
 
     private var legend: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(Array(clusters.enumerated()), id: \.offset) { _, cluster in
                 HStack(spacing: 6) {
                     Circle().fill(cluster.color).frame(width: 8, height: 8)
                     Text(cluster.label.uppercased())
                         .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
                 }
             }
         }
-        .padding(10)
-        .background(.background)
-        .overlay(RoundedRectangle(cornerRadius: 2).stroke(.primary, lineWidth: 1))
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
         .padding(12)
     }
 
@@ -234,7 +244,7 @@ private struct GraphNodeView: View {
             Circle()
                 .fill(isSelected || showLabel ? color : color.opacity(0.7))
                 .frame(width: 12, height: 12)
-                .overlay(Circle().stroke(.primary, lineWidth: isSelected ? 1.5 : 0))
+                .overlay(Circle().stroke(.tint, lineWidth: isSelected ? 2 : 0))
 
             if showLabel {
                 Text(paper.title)
@@ -242,9 +252,8 @@ private struct GraphNodeView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .frame(width: 130)
-                    .padding(4)
-                    .background(.background)
-                    .overlay(RoundedRectangle(cornerRadius: 2).stroke(.primary, lineWidth: 1))
+                    .padding(6)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
             }
         }
         // Hit area bigger than the visible dot, and consistent whether or not

@@ -39,5 +39,6 @@ enum StoreMigration {
         defer { sqlite3_close(db) }
         // Fails harmlessly (and is ignored) if the column already exists.
         sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZEMBEDDING BLOB", nil, nil, nil)
+        sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZSUBTOPIC VARCHAR", nil, nil, nil)
     }
 }

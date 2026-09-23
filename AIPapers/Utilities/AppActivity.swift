@@ -29,6 +29,10 @@ final class AppActivity: ObservableObject {
     @Published var summarizeTotal = 0
     @Published var summarizeStartedAt: Date?
 
+    @Published var isCategorizing = false
+    @Published var categorizeCompleted = 0
+    @Published var categorizeTotal = 0
+
     /// Per-paper summarize() in flight — tracked here, not view-local @State,
     /// so navigating away and back shows the real state instead of resetting
     /// to "not generating" while the call is still actually running.
@@ -39,6 +43,7 @@ final class AppActivity: ObservableObject {
     private let modelContainer: ModelContainer
     private var refreshTask: Task<Void, Never>?
     private var summarizeTask: Task<Void, Never>?
+    private var categorizeTask: Task<Void, Never>?
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -83,11 +88,17 @@ final class AppActivity: ObservableObject {
             let service = self.makeService()
             do {
                 let result = try await service.refresh { stage in self.refreshProgressText = stage }
-                if result.papersAdded == 0 {
+                if result.wasPaused {
+                    self.refreshStatusMessage = "Paused — saved \(result.papersAdded) paper\(result.papersAdded == 1 ? "" : "s") so far. Resume anytime with Refresh."
+                } else if result.papersAdded == 0 {
                     self.refreshStatusMessage = "No new papers found. Your archive is already up to date."
                 } else {
                     self.refreshStatusMessage = "Added \(result.papersAdded) new papers."
                 }
+            } catch is CancellationError {
+                self.refreshStatusMessage = "Paused. Resume anytime with Refresh."
+            } catch let error as URLError where error.code == .cancelled {
+                self.refreshStatusMessage = "Paused. Resume anytime with Refresh."
             } catch let error as ArxivServiceError {
                 self.refreshErrorMessage = error.errorDescription
             } catch {
@@ -96,6 +107,13 @@ final class AppActivity: ObservableObject {
             self.isRefreshing = false
             self.refreshProgressText = nil
         }
+    }
+
+    /// Cancels the in-flight refresh. Cooperative: the running task notices
+    /// at its next checkpoint (between papers, or when arXiv's request is
+    /// torn down) and saves whatever it already fetched before stopping.
+    func pauseRefresh() {
+        refreshTask?.cancel()
     }
 
     func summarizeAllMissing() {
@@ -121,6 +139,43 @@ final class AppActivity: ObservableObject {
             self.isSummarizingAll = false
             self.summarizeStartedAt = nil
         }
+    }
+
+    /// Backfills the fixed-list topic for every paper that doesn't have one yet.
+    func categorizeAll() {
+        guard !isCategorizing else { return }
+        isCategorizing = true
+        categorizeCompleted = 0
+        categorizeTotal = 0
+        refreshErrorMessage = nil
+
+        categorizeTask = Task {
+            let context = ModelContext(self.modelContainer)
+            let repository = PaperRepository(context: context)
+            let service = PaperService(repository: repository)
+            let pending = ((try? repository.allPapers()) ?? []).filter { !AnalyticsService.isClassified($0) }
+
+            self.categorizeTotal = pending.count
+            for paper in pending {
+                if Task.isCancelled { break }
+                do {
+                    try await service.categorize(paper)
+                } catch {
+                    if !Task.isCancelled {
+                        self.refreshErrorMessage = "Ollama isn't running. Start Ollama and try again."
+                    }
+                    break
+                }
+                self.categorizeCompleted += 1
+            }
+
+            self.isCategorizing = false
+        }
+    }
+
+    func cancelCategorize() {
+        categorizeTask?.cancel()
+        isCategorizing = false
     }
 
     func cancelSummarizeAll() {

@@ -12,6 +12,9 @@ nonisolated enum AppSettingsKeys {
     static let maxPapersToFetch = "maxPapersToFetch"
     static let topicsCSV = "topicsCSV"
     static let ollamaModel = "ollamaModel"
+    static let navigationStyle = "navigationStyle"
+    static let sidebarVisibleByDefault = "sidebarVisibleByDefault"
+    static let hiddenSections = "hiddenSections"
 }
 
 nonisolated enum AppSettings {

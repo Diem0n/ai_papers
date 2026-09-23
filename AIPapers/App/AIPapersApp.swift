@@ -29,17 +29,23 @@ struct AIPapersApp: App {
             ContentView()
                 .environmentObject(router)
                 .environmentObject(appActivity)
-                .preferredColorScheme(.light)
                 .onOpenURL { url in
                     router.handle(url)
                 }
         }
         .modelContainer(modelContainer)
         .defaultSize(width: 1200, height: 780)
+        .commands {
+            CommandMenu("Go") {
+                ForEach(Array(AppSection.allCases.enumerated()), id: \.element) { index, section in
+                    Button(section.rawValue) { router.pendingSection = section }
+                        .keyboardShortcut(KeyEquivalent(Character(String(index + 1))), modifiers: .command)
+                }
+            }
+        }
 
         Settings {
             SettingsView()
-                .preferredColorScheme(.light)
         }
     }
 }

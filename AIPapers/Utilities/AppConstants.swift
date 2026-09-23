@@ -13,14 +13,12 @@ nonisolated enum AppConstants {
     ]
 
     /// AI-engineering-relevant topics used for relevance scoring and tagging.
-    static let topics = [
-        "LLM", "Agents", "RAG", "Retrieval", "Inference", "Fine-tuning",
-        "Training", "Multimodal", "Computer Vision", "AI Systems",
-        "Evaluation", "MLOps", "Generative AI", "Reasoning",
-        "Model Optimization", "AI Infrastructure"
-    ]
+    /// Derived from the taxonomy so there's one list; the "Other" bucket is
+    /// left out because it's a classification fallback, not something that
+    /// should earn a paper relevance points.
+    static let topics = Taxonomy.all.filter { $0.area != Taxonomy.otherArea }.map(\.name)
 
     static let ollamaBaseURL = URL(string: "http://localhost:11434")!
-    static let ollamaModel = "gemma3:4b"
+    static let ollamaModel = "gemma4:latest"
     static let embeddingModel = "mxbai-embed-large"
 }

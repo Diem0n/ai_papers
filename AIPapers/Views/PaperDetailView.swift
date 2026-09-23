@@ -22,36 +22,12 @@ struct PaperDetailView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text(paper.title)
                     .font(.title.bold())
-                    .tracking(-0.3)
 
                 Text(paper.authors)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 16) {
-                    Label {
-                        Text(paper.publishedAt.formatted(date: .abbreviated, time: .omitted))
-                            .font(.system(.caption, design: .monospaced))
-                    } icon: {
-                        Image(systemName: "calendar")
-                    }
-                    if let category = paper.category {
-                        Label {
-                            Text(category.uppercased())
-                                .font(.system(.caption, design: .monospaced))
-                        } icon: {
-                            Image(systemName: "tag")
-                        }
-                    }
-                    Label {
-                        Text("\(Int(paper.relevanceScore * 100))% relevant")
-                            .font(.system(.caption, design: .monospaced))
-                    } icon: {
-                        Image(systemName: "gauge.with.needle")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                metaRow
 
                 Divider()
 
@@ -61,22 +37,7 @@ struct PaperDetailView: View {
 
                 relatedSection
 
-                HStack {
-                    if let url = URL(string: paper.url) {
-                        Link(destination: url) {
-                            Label("Open on arXiv", systemImage: "arrow.up.right.square")
-                        }
-                    }
-                    Spacer()
-                    Toggle(isOn: $paper.isFavorite) {
-                        Label("Favorite", systemImage: paper.isFavorite ? "star.fill" : "star")
-                    }
-                    .toggleStyle(.button)
-                    Toggle(isOn: $paper.isRead) {
-                        Label("Read", systemImage: paper.isRead ? "checkmark.circle.fill" : "circle")
-                    }
-                    .toggleStyle(.button)
-                }
+                actionBar
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -92,12 +53,23 @@ struct PaperDetailView: View {
         }
     }
 
+    private var metaRow: some View {
+        HStack(spacing: 16) {
+            Label(paper.publishedAt.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
+            Label("Pulled \(paper.discoveredAt.formatted(date: .abbreviated, time: .omitted))", systemImage: "tray.and.arrow.down")
+            Label(AnalyticsService.fixedTopic(for: paper).uppercased(), systemImage: "tag")
+            Label("\(Int(paper.relevanceScore * 100))% relevant", systemImage: "gauge.with.needle")
+        }
+        .font(.system(.caption, design: .monospaced))
+        .foregroundStyle(.secondary)
+    }
+
     @ViewBuilder
     private var summarySection: some View {
         if let summary = paper.summary {
-            section("Summary", text: summary)
+            callout(title: "Summary", text: summary)
             if let whyItMatters = paper.whyItMatters {
-                section("Why it matters", text: whyItMatters)
+                callout(title: "Why it matters", text: whyItMatters)
             }
         } else if appActivity.summarizingPaperIDs.contains(paper.id) {
             HStack(spacing: 8) {
@@ -116,8 +88,31 @@ struct PaperDetailView: View {
         }
     }
 
+    /// A left-accent callout, like a technical doc's admonition block —
+    /// distinguishes model-generated interpretation from the paper's own
+    /// text without dressing it up as something it isn't.
+    private func callout(title: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            Rectangle()
+                .fill(.tint)
+                .frame(width: 3)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    sectionHeader(title)
+                    Spacer()
+                    Text("AI")
+                        .font(.system(.caption2, design: .monospaced, weight: .bold))
+                        .foregroundStyle(.tint)
+                }
+                Text(text)
+                    .lineSpacing(3)
+            }
+            .padding(.leading, 12)
+        }
+    }
+
     private var relatedSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             sectionHeader("Related Papers")
             if relatedPapers.isEmpty {
                 Text("None yet — open a few more papers to build up connections between them.")
@@ -134,13 +129,31 @@ struct PaperDetailView: View {
                             Spacer()
                             Text("\(Int(related.score * 100))%")
                                 .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.tint)
                         }
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.tint)
                 }
             }
+        }
+    }
+
+    private var actionBar: some View {
+        HStack {
+            if let url = URL(string: paper.url) {
+                Link(destination: url) {
+                    Label("Open on arXiv", systemImage: "arrow.up.right.square")
+                }
+            }
+            Spacer()
+            Toggle(isOn: $paper.isFavorite) {
+                Label("Favorite", systemImage: paper.isFavorite ? "star.fill" : "star")
+            }
+            .toggleStyle(.button)
+            Toggle(isOn: $paper.isRead) {
+                Label("Read", systemImage: paper.isRead ? "checkmark.circle.fill" : "circle")
+            }
+            .toggleStyle(.button)
         }
     }
 
@@ -163,7 +176,7 @@ struct PaperDetailView: View {
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(.caption, design: .default, weight: .semibold))
+            .font(.system(.caption, design: .monospaced, weight: .semibold))
             .tracking(0.8)
             .foregroundStyle(.secondary)
     }

@@ -13,6 +13,7 @@ import WidgetKit
 
 struct RefreshResult {
     let papersAdded: Int
+    let wasPaused: Bool
 }
 
 private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "PaperService")
@@ -50,7 +51,9 @@ final class PaperService {
 
         let topics = AppSettings.topics
         var insertedPapers: [Paper] = []
+        var wasPaused = false
         for arxivPaper in newPapers {
+            if Task.isCancelled { wasPaused = true; break }
             let relevance = RelevanceService.score(
                 title: arxivPaper.title,
                 abstractText: arxivPaper.abstractText,
@@ -82,6 +85,7 @@ final class PaperService {
         // run eagerly here — related papers and the graph need broad coverage
         // to be useful, not just whatever you happen to have opened.
         for (index, paper) in insertedPapers.enumerated() {
+            if Task.isCancelled { wasPaused = true; break }
             onProgress("Finding connections \(index + 1) of \(insertedPapers.count)…")
             await embed(paper)
         }
@@ -90,9 +94,11 @@ final class PaperService {
             WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
         }
 
-        await generateTrendBriefIfNeeded(onProgress: onProgress)
+        if !wasPaused {
+            await generateTrendBriefIfNeeded(onProgress: onProgress)
+        }
 
-        return RefreshResult(papersAdded: newPapers.count)
+        return RefreshResult(papersAdded: insertedPapers.count, wasPaused: wasPaused)
     }
 
     /// Synthesizes a cross-paper "where the field is heading" brief, once per
@@ -136,7 +142,11 @@ final class PaperService {
             let summary = try await ollamaService.summarize(title: paper.title, abstractText: paper.abstractText)
             paper.summary = summary.summary
             paper.whyItMatters = summary.whyItMatters
-            paper.category = summary.topics.first ?? paper.category
+            // Don't let a summary re-decide a topic the classifier already set —
+            // the stored subtopic belongs to that topic.
+            if AnalyticsService.storedTopic(paper) == nil {
+                paper.category = summary.topics.first ?? paper.category
+            }
             paper.relevanceScore = RelevanceService.score(
                 title: paper.title,
                 abstractText: paper.abstractText,
@@ -153,6 +163,23 @@ final class PaperService {
         } catch {
             logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
             return false
+        }
+    }
+
+    /// Assigns a topic and subtopic from the fixed taxonomy via the model,
+    /// without generating a full summary. A stored topic is kept and only the
+    /// subtopic is asked. Only throws when Ollama itself is unreachable, so a
+    /// batch caller can stop instead of grinding through dozens of failures.
+    func categorize(_ paper: Paper) async throws {
+        do {
+            let known = AnalyticsService.storedTopic(paper)
+            guard let result = try await ollamaService.classify(title: paper.title, abstractText: paper.abstractText, knownTopic: known) else { return }
+            paper.category = result.topic
+            paper.subtopic = result.subtopic
+            try? repository.save()
+        } catch let error as OllamaServiceError {
+            if case .connectionFailed = error { throw error }
+            logger.error("Ollama classify failed for \(paper.id, privacy: .public): \(error.debugDescription, privacy: .public)")
         }
     }
 

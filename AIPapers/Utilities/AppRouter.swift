@@ -13,6 +13,7 @@ import Combine
 final class AppRouter: ObservableObject {
     @Published var pendingPaperID: String?
     @Published var pendingTrendOpen = false
+    @Published var pendingSection: AppSection?
 
     func handle(_ url: URL) {
         guard url.scheme == "aipapers" else { return }

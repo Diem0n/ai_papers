@@ -36,9 +36,16 @@ enum RelevanceService {
     // interaction tracking and GitHub-link detection exist.
     private static func topicMatchScore(title: String, abstractText: String, topics: [String]) -> Double {
         guard !topics.isEmpty else { return 0 }
-        let haystack = (title + " " + abstractText).lowercased()
-        let matches = topics.filter { haystack.contains($0.lowercased()) }.count
+        let matches = matchingTopics(title: title, abstractText: abstractText, topics: topics).count
         return min(Double(matches) / 3.0, 1.0)
+    }
+
+    /// Which of the fixed topics actually appear in this paper's text —
+    /// also used to categorize papers that haven't been LLM-summarized
+    /// (and thus have no model-assigned topic) yet.
+    static func matchingTopics(title: String, abstractText: String, topics: [String] = AppConstants.topics) -> [String] {
+        let haystack = (title + " " + abstractText).lowercased()
+        return topics.filter { haystack.contains($0.lowercased()) }
     }
 
     private static func recencyScore(publishedAt: Date, referenceDate: Date) -> Double {

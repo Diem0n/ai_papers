@@ -16,6 +16,11 @@ nonisolated struct OllamaSummary: Codable, Sendable, Equatable {
     let topics: [String]
 }
 
+nonisolated struct OllamaClassification: Sendable, Equatable {
+    let topic: String
+    let subtopic: String
+}
+
 enum OllamaServiceError: LocalizedError {
     case connectionFailed(underlying: Error)
     case serverError(statusCode: Int)
@@ -76,7 +81,51 @@ nonisolated final class OllamaService {
     }
 
     func summarize(title: String, abstractText: String) async throws -> OllamaSummary {
-        let request = try makeRequest(title: title, abstractText: abstractText)
+        let raw = try await generate(prompt: Self.prompt(title: title, abstractText: abstractText))
+
+        guard let contentData = raw.data(using: .utf8),
+              let summary = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
+            throw OllamaServiceError.malformedContent(raw: raw)
+        }
+
+        // The model should not be trusted for canonical metadata: coerce
+        // whatever topic strings it invented back onto the fixed list we
+        // asked for, dropping anything that doesn't match.
+        return OllamaSummary(
+            summary: summary.summary,
+            keyContribution: summary.keyContribution,
+            whyItMatters: summary.whyItMatters,
+            engineeringRelevance: summary.engineeringRelevance,
+            topics: Self.canonicalTopics(from: summary.topics)
+        )
+    }
+
+    /// One short call that picks a topic and subtopic from the fixed taxonomy —
+    /// far cheaper than a full summary, so it can backfill a whole archive.
+    /// If the topic is already known only the subtopic is asked, which is
+    /// both faster and means the stored topic is never re-decided.
+    /// Returns nil if no valid topic comes back.
+    func classify(title: String, abstractText: String, knownTopic: String? = nil) async throws -> OllamaClassification? {
+        let known = knownTopic.flatMap(Taxonomy.topic(named:))
+        let prompt = known.map { Self.subtopicPrompt(title: title, abstractText: abstractText, topic: $0) }
+            ?? Self.classifyPrompt(title: title, abstractText: abstractText)
+        let raw = try await generate(prompt: prompt)
+
+        guard let contentData = raw.data(using: .utf8),
+              let result = try? JSONDecoder().decode(ClassifyResult.self, from: contentData) else {
+            throw OllamaServiceError.malformedContent(raw: raw)
+        }
+
+        // Never trust the model for canonical labels: snap both onto the
+        // taxonomy, and record "Other" rather than nothing when no subtopic fits.
+        guard let topic = known ?? result.topic.flatMap(Taxonomy.topic(named:)) else { return nil }
+        let subtopic = result.subtopic.flatMap { Taxonomy.canonicalSubtopic($0, in: topic.name) } ?? Taxonomy.otherSubtopic
+        return OllamaClassification(topic: topic.name, subtopic: subtopic)
+    }
+
+    /// Sends a prompt to /api/generate and returns the model's raw text.
+    private func generate(prompt: String) async throws -> String {
+        let request = try makeRequest(prompt: prompt)
 
         let data: Data
         let response: URLResponse
@@ -103,19 +152,19 @@ nonisolated final class OllamaService {
         guard let generateResponse = try? JSONDecoder().decode(GenerateResponse.self, from: data) else {
             throw OllamaServiceError.invalidResponse
         }
-
-        guard let contentData = generateResponse.response.data(using: .utf8),
-              let summary = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
-            throw OllamaServiceError.malformedContent(raw: generateResponse.response)
-        }
-
-        return summary
+        return generateResponse.response
     }
 
-    private func makeRequest(title: String, abstractText: String) throws -> URLRequest {
+    private static func canonicalTopics(from rawTopics: [String]) -> [String] {
+        rawTopics.compactMap { raw in
+            Taxonomy.names.first { $0.caseInsensitiveCompare(raw) == .orderedSame }
+        }
+    }
+
+    private func makeRequest(prompt: String) throws -> URLRequest {
         let body = GenerateRequest(
             model: model,
-            prompt: Self.prompt(title: title, abstractText: abstractText),
+            prompt: prompt,
             stream: false,
             format: "json"
         )
@@ -145,8 +194,52 @@ nonisolated final class OllamaService {
           "engineeringRelevance": 0.0,
           "topics": ["topic1", "topic2"]
         }
+
+        "topics" must contain only values from this exact list, spelled exactly
+        as shown (1 to 3 of them, most relevant first). Prefer the most specific topic:
+        \(Taxonomy.promptList)
+        Do not invent topics outside this list.
         """
     }
+
+    private static func classifyPrompt(title: String, abstractText: String) -> String {
+        """
+        Classify this research paper into exactly one topic and one subtopic
+        from the taxonomy below. Choose the most specific topic that fits; use
+        "LLM" only for general language-model work that fits nothing more
+        specific, and "Classical ML" for statistics/classical machine learning
+        that isn't about AI systems. The subtopic must belong to the chosen topic.
+
+        Taxonomy (topic, with its subtopics indented beneath):
+        \(Taxonomy.nestedPromptList)
+
+        Title: \(title)
+        Abstract: \(abstractText)
+
+        Respond with ONLY a JSON object: {"topic": "<topic name>", "subtopic": "<subtopic name>"}
+        Spell names exactly as shown.
+        """
+    }
+
+    private static func subtopicPrompt(title: String, abstractText: String, topic: Taxonomy.Topic) -> String {
+        """
+        This research paper belongs to the topic "\(topic.name)". Choose the one
+        subtopic below that fits it best. If none fits, answer "Other".
+
+        Subtopics:
+        \(Taxonomy.subtopicPromptList(for: topic))
+
+        Title: \(title)
+        Abstract: \(abstractText)
+
+        Respond with ONLY a JSON object: {"subtopic": "<subtopic name, spelled exactly as shown>"}
+        """
+    }
+}
+
+nonisolated private struct ClassifyResult: Decodable {
+    let topic: String?
+    let subtopic: String?
 }
 
 nonisolated private struct GenerateRequest: Encodable {

@@ -32,6 +32,10 @@ final class Paper {
     /// paper is first opened. Powers "Related Papers" via cosine similarity.
     var embedding: [Double]?
 
+    /// Third taxonomy level under `category` (the fixed topic), assigned by
+    /// the model. "Other" means it was classified and nothing on the list fit.
+    var subtopic: String?
+
     init(
         id: String,
         title: String,
@@ -46,7 +50,8 @@ final class Paper {
         relevanceScore: Double = 0,
         isRead: Bool = false,
         isFavorite: Bool = false,
-        embedding: [Double]? = nil
+        embedding: [Double]? = nil,
+        subtopic: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -62,5 +67,6 @@ final class Paper {
         self.isRead = isRead
         self.isFavorite = isFavorite
         self.embedding = embedding
+        self.subtopic = subtopic
     }
 }
