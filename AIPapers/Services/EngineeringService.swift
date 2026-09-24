@@ -40,6 +40,19 @@ enum EngineeringService {
         return String(hash, radix: 16)
     }
 
+    /// Small models occasionally emit broken JSON. Ask again once (the second
+    /// sample is usually fine) before giving up with `.unusable`.
+    private static func generateValidated<T>(
+        prompt: String, contextTokens: Int? = nil, parse: (String) -> T?
+    ) async throws -> T {
+        for attempt in 1...2 {
+            let raw = try await ollama.generate(prompt: prompt, contextTokens: contextTokens)
+            if let value = parse(raw) { return value }
+            if attempt == 2 { break }
+        }
+        throw EngineeringError.unusable
+    }
+
     // MARK: Fit
 
     static func assessFit(_ paper: Paper) async throws {
@@ -51,8 +64,10 @@ enum EngineeringService {
         store.setWorking(key, true)
         defer { store.setWorking(key, false) }
 
-        let raw = try await ollama.generate(prompt: fitPrompt(stack: stack, title: paper.title, abstract: paper.abstractText))
-        guard let fit = parseFit(raw, signature: stackSignature(stack)) else { throw EngineeringError.unusable }
+        let signature = stackSignature(stack)
+        let fit = try await generateValidated(prompt: fitPrompt(stack: stack, title: paper.title, abstract: paper.abstractText)) {
+            parseFit($0, signature: signature)
+        }
         store.update(paper.id) { $0.fit = fit }
     }
 
@@ -97,8 +112,9 @@ enum EngineeringService {
         store.setWorking(key, true)
         defer { store.setWorking(key, false) }
 
-        let raw = try await ollama.generate(prompt: claimsPrompt(title: paper.title, abstract: paper.abstractText))
-        guard let claims = parseClaims(raw, abstract: paper.abstractText) else { throw EngineeringError.unusable }
+        let claims = try await generateValidated(prompt: claimsPrompt(title: paper.title, abstract: paper.abstractText)) {
+            parseClaims($0, abstract: paper.abstractText)
+        }
         store.update(paper.id) { $0.claims = claims }
     }
 
@@ -161,11 +177,10 @@ enum EngineeringService {
 
         let fullText = fullText(of: paper)
         let links = CodeLinkStore.shared.links[paper.id]
-        let raw = try await ollama.generate(
+        let plan = try await generateValidated(
             prompt: planPrompt(paper: paper, fullText: fullText, repo: links?.githubRepo, stack: AppSettings.stackProfile),
             contextTokens: fullText == nil ? nil : 12_288
-        )
-        guard let plan = parsePlan(raw, usedFullText: fullText != nil) else { throw EngineeringError.unusable }
+        ) { parsePlan($0, usedFullText: fullText != nil) }
         store.update(paper.id) {
             $0.plan = plan
             $0.planDone = []

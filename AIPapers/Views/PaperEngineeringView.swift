@@ -177,6 +177,17 @@ struct PaperEngineeringView: View {
             Spacer()
             if store.isWorking(kind, paper.id) {
                 ProgressView().controlSize(.small)
+            } else if errors[kind] != nil {
+                // A failed regeneration keeps the old result on screen — say so, don't fail silently.
+                Label(errors[kind] ?? "", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+                    .help(errors[kind] ?? "")
+                Button { Task { await action() } } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Try again")
             } else if redo {
                 Button { Task { await action() } } label: {
                     Image(systemName: "arrow.clockwise")
