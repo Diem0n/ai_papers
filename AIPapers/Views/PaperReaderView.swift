@@ -31,7 +31,15 @@ struct PaperReaderView: View {
         Group {
             switch state {
             case .loading:
-                ProgressView("Downloading from arXiv…")
+                VStack(spacing: 6) {
+                    ProgressView()
+                    Text("Downloading from arXiv…")
+                    Text("It's saved on this Mac afterwards, so it opens instantly next time. arXiv can take up to a minute.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 320)
+                }
             case .ready(let url):
                 PDFKitView(url: url)
             case .failed(let message):
