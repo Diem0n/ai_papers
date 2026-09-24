@@ -176,12 +176,12 @@ nonisolated final class OllamaService {
         return trimmed
     }
 
-    /// Teaches one concept: plain-language core idea, analogy (and where it
-    /// breaks), worked example, misconception, and a check question. Grounded
-    /// in the archive only for claims about papers.
-    func explain(concept: String, sources: [AskPromptSource], alreadyRead: [String]) async throws -> String {
-        let text = try await generate(prompt: Self.explainPrompt(concept: concept, sources: sources, alreadyRead: alreadyRead), json: false)
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Teaches one concept from general knowledge: core idea, analogy (and where
+    /// it breaks), worked example, misconception, and a check question.
+    func explain(concept: String) async throws -> String {
+        let text = try await generate(prompt: Self.explainPrompt(concept: concept), json: false)
+        // The UI shows plain text, not LaTeX — strip the math delimiters small models add anyway.
+        let trimmed = text.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OllamaServiceError.invalidResponse }
         return trimmed
     }
@@ -348,51 +348,37 @@ nonisolated final class OllamaService {
         """
     }
 
-    /// Built from learning-science findings: activate prior knowledge (anchor on what
-    /// the reader already knows, skip basics — the expertise-reversal effect), one
-    /// concrete worked example before abstraction, an analogy plus where it fails,
-    /// a named misconception, no extraneous material (Mayer's coherence principle),
-    /// and a retrieval-practice question whose answer is withheld.
-    private static func explainPrompt(concept: String, sources: [AskPromptSource], alreadyRead: [String]) -> String {
-        let known = alreadyRead.isEmpty ? "" : """
-
-        The reader has already engaged with these related papers; connect the idea to them where it helps:
-        \(alreadyRead.map { "- \($0)" }.joined(separator: "\n"))
-
+    /// Built from learning-science findings: anchor on what the reader already knows
+    /// and skip basics (the expertise-reversal effect), one concrete worked example
+    /// before abstraction, an analogy plus where it fails, a named misconception, no
+    /// extraneous material (Mayer's coherence principle), and a retrieval-practice
+    /// question whose answer is withheld.
+    private static func explainPrompt(concept: String) -> String {
         """
-        let papers = sources.isEmpty
-            ? "(none of the saved papers are related)"
-            : sources.map { "[\($0.index)] \($0.title)\n\($0.text)" }.joined(separator: "\n\n")
-        return """
         You are a patient technical tutor teaching ONE concept to an AI engineer with a
         data-science degree: fluent in machine-learning fundamentals, statistics and
         Python, but not necessarily familiar with this specific concept. Do not re-teach
         basics they already know; spend the words on what is new.
 
-        Concept: \(concept)
-        \(known)
-        Excerpts from the reader's saved papers (numbered):
-        \(papers)
+        Request: \(concept)
 
-        Write exactly these nine sections, in this order, each on its own line starting with its
-        bold label written exactly as shown (do not rename or skip any). Plain text only:
+        Write exactly these eight sections, in this order, each on its own line starting with
+        its bold label written exactly as shown (do not rename or skip any). Plain text only:
         no headings, tables, code fences or LaTeX (write K_t, not $K_t$).
 
         **In one line** — the core idea in at most 25 words: plain language first, then the precise term.
         **Why it exists** — the problem it solves or the limitation it removes, in one or two sentences.
         **Intuition** — one analogy drawn from something an ML practitioner already knows. Then one sentence starting "Where it breaks:" saying where the analogy stops being true.
-        **How it works** — three to five short numbered steps.
+        **How it works** — three to five short numbered steps, each on its own line.
         **Worked example** — a tiny concrete example with small numbers, or a few lines of pseudocode, that the reader could trace by hand. Show the steps and the result.
         **Common misconception** — one thing people usually get wrong, and the correct view.
-        **In your archive** — one to three sentences on how the numbered papers use or extend this concept, citing them like [1]. If none of them really cover it, write "None of your saved papers cover this directly." Do not stretch.
         **Check yourself** — one question that makes the reader apply the idea, not recite it.
         **Answer** — the answer to that question, in one or two sentences. This must be the last section.
 
         Rules:
-        - Explain the concept from general knowledge, but any statement about the saved papers must come only from the numbered excerpts.
-        - Never invent results, benchmark numbers, citations, links or authors.
-        - If you are unsure of a detail, say so instead of guessing.
-        - Under 350 words in total. Short sentences. No filler, no praise, no restating the question.
+        - Only state what you are confident is correct. If you don't reliably know this concept, or the exact formula, say "I'm not certain about this" in the first section instead of inventing details.
+        - Never invent citations, benchmark numbers, links or authors.
+        - Under 350 words in total. Short sentences. No filler, no praise, no restating the request.
         """
     }
 

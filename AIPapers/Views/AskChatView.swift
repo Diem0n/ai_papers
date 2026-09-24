@@ -77,12 +77,12 @@ struct AskChatView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 340)
-            Text("Learning something new? Type /explain and a concept.")
+            Text("Ask what a concept is and it will be explained, no sources needed. Use /explain or /ask to choose.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 340)
-            Button("/explain \(explainSuggestion)") { send("/explain \(explainSuggestion)") }
+            Button("What is \(explainSuggestion)?") { send("What is \(explainSuggestion)?") }
                 .buttonStyle(.bordered)
             ForEach(suggestions, id: \.self) { suggestion in
                 Button(suggestion) { send(suggestion) }
@@ -129,22 +129,19 @@ struct AskChatView: View {
             } else if let answer = turn.answer {
                 HStack(alignment: .top, spacing: 0) {
                     Rectangle().fill(.tint).frame(width: 3)
-                    Text(turn.isExplain ? AskSession.formatted(answer) : AttributedString(answer))
-                        .lineSpacing(3)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, 10)
-                }
-                if let hidden = turn.hiddenAnswer {
-                    DisclosureGroup("Show the answer") {
-                        Text(AskSession.formatted(hidden))
-                            .textSelection(.enabled)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 4)
+                    Group {
+                        if turn.isExplain {
+                            ExplanationView(text: answer)
+                        } else {
+                            Text(answer)
+                                .lineSpacing(3)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    .font(.callout)
+                    .padding(.leading, 10)
                 }
+                if let copyText = turn.copyText { CopyButton(text: copyText) }
                 if !turn.sources.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(turn.sources.enumerated()), id: \.element.paper.id) { index, source in
@@ -172,7 +169,7 @@ struct AskChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Ask about your papers, or /explain a concept…", text: $input)
+            TextField("Ask about your papers, or what a concept is…", text: $input)
                 .textFieldStyle(.roundedBorder)
                 .focused($inputFocused)
                 .onSubmit { send(input) }

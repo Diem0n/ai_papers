@@ -153,7 +153,7 @@ struct DashboardView: View {
             VStack(spacing: gap) {
                 HStack(alignment: .top, spacing: gap) {
                     topicsCard.frame(height: right[0])
-                    trendingCard.frame(height: right[0])
+                    trendingCard(height: right[0]).frame(height: right[0])
                 }
                 HStack(alignment: .top, spacing: gap) {
                     briefCard(lines: lineCount(fitting: right[1])).frame(height: right[1])
@@ -210,6 +210,8 @@ struct DashboardView: View {
         }
     }
 
+    /// Rows share the card's height equally, so a card with room to spare
+    /// spreads out instead of leaving a blank band underneath.
     private func paperList(_ papers: [Paper], showsDate: Bool = false) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(papers.enumerated()), id: \.element.id) { index, paper in
@@ -217,6 +219,7 @@ struct DashboardView: View {
                 paperRow(paper, showsDate: showsDate)
             }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     private func paperRow(_ paper: Paper, showsDate: Bool) -> some View {
@@ -238,7 +241,7 @@ struct DashboardView: View {
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(.vertical, 6)
             .padding(.horizontal, 6)
             .background(selectedPaper?.id == paper.id ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
@@ -258,15 +261,15 @@ struct DashboardView: View {
         }
     }
 
-    private var trendingCard: some View {
-        let trending = AnalyticsService.trendingTopics(allPapers, limit: 5)
+    private func trendingCard(height: CGFloat) -> some View {
+        let trending = AnalyticsService.trendingTopics(allPapers, limit: min(8, max(5, Int((height - 48) / 30))))
         return BentoCard(title: "Trending", action: { onOpenSection(.analytics) }) {
             if trending.isEmpty {
                 Text("Not enough history yet.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 0) {
                     ForEach(trending) { topic in
                         HStack {
                             Text(topic.topic)
@@ -278,6 +281,7 @@ struct DashboardView: View {
                                 .font(.system(.callout, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(maxHeight: .infinity)
                     }
                 }
             }
@@ -289,12 +293,12 @@ struct DashboardView: View {
     private func briefCard(lines: Int) -> some View {
         BentoCard(title: "Trend brief", action: { onOpenSection(.trend) }) {
             if let digest {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     Text(narrative?.tldr ?? briefFallback(digest))
                         .font(.callout.weight(.semibold))
                         .lineLimit(3)
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(digest.themes.prefix(max(1, lines / 3))) { theme in
+                        ForEach(digest.themes.prefix(max(1, lines / 4))) { theme in
                             HStack(spacing: 8) {
                                 Text("\(theme.papers.count)")
                                     .font(.system(.caption, design: .monospaced, weight: .bold))
@@ -303,6 +307,47 @@ struct DashboardView: View {
                                 Text(narrative?.themes.first { $0.index == theme.id }?.headline ?? theme.label)
                                     .font(.callout)
                                     .lineLimit(1)
+                            }
+                        }
+                    }
+                    if lines >= 12, !digest.risingTerms.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("RISING")
+                                .font(.system(.caption2, design: .monospaced, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 6) {
+                                ForEach(digest.risingTerms.prefix(3)) { term in
+                                    Text(term.term)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .fixedSize()
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(.tint.opacity(0.14), in: Capsule())
+                                }
+                            }
+                        }
+                    }
+                    if lines >= 16, !digest.readingPlan.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("READ FIRST")
+                                .font(.system(.caption2, design: .monospaced, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(Array(digest.readingPlan.prefix(min(3, (lines - 10) / 4)).enumerated()), id: \.element.id) { index, paper in
+                                Button { open(paper) } label: {
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Text("\(index + 1)")
+                                            .font(.system(.caption, design: .monospaced, weight: .bold))
+                                            .foregroundStyle(.tint)
+                                        Text(paper.title)
+                                            .font(.caption)
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.leading)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.vertical, 3)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -342,12 +387,16 @@ struct DashboardView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(Array(picks.enumerated()), id: \.element.id) { index, pick in
-                                if index > 0 { Divider() }
-                                pickRow(pick)
+                    GeometryReader { proxy in
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(Array(picks.enumerated()), id: \.element.id) { index, pick in
+                                    if index > 0 { Divider() }
+                                    pickRow(pick)
+                                }
                             }
+                            // Fill the card when there's room; scroll only when there isn't.
+                            .frame(minHeight: proxy.size.height)
                         }
                     }
                     HStack(spacing: 8) {
@@ -389,7 +438,7 @@ struct DashboardView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .padding(.vertical, 6)
             .padding(.horizontal, 6)
             .background(selectedPaper?.id == pick.paper.id ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
@@ -440,6 +489,15 @@ struct DashboardView: View {
             .map(\.category)
             .filter { $0 != Taxonomy.uncategorized }
             .map { "What's new in \($0)?" }
+    }
+
+    /// Concepts from this archive's own subtopics, so the examples are relevant.
+    private var explainSuggestions: [String] {
+        let subs = Dictionary(grouping: allPapers.compactMap(\.subtopic).filter { $0 != Taxonomy.otherSubtopic }, by: { $0 })
+            .sorted { $0.value.count > $1.value.count }
+            .prefix(2)
+            .map(\.key)
+        return subs.map { "What is \($0.lowercased())?" }
     }
 
     /// Ask lives here, right on the dashboard: the answer is written in the
@@ -507,33 +565,29 @@ struct DashboardView: View {
                         .foregroundStyle(.secondary)
                 } else if let answer = turn.answer {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(turn.isExplain ? AskSession.formatted(answer) : AttributedString(answer))
+                        if turn.isExplain {
+                            ExplanationView(text: answer)
+                        } else {
+                            Text(answer)
                                 .font(.callout)
                                 .lineSpacing(3)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            if let hidden = turn.hiddenAnswer {
-                                DisclosureGroup("Show the answer") {
-                                    Text(AskSession.formatted(hidden))
-                                        .font(.callout)
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .font(.callout)
-                            }
                         }
                     }
-                    HStack(spacing: 6) {
-                        Text("SOURCES")
-                            .font(.system(.caption2, design: .monospaced, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        ForEach(Array(turn.sources.enumerated()), id: \.element.paper.id) { index, source in
-                            Button("[\(index + 1)]") { open(source.paper) }
-                                .buttonStyle(.plain)
-                                .font(.system(.caption, design: .monospaced, weight: .bold))
-                                .foregroundStyle(.tint)
-                                .help(source.paper.title)
+                    HStack(spacing: 10) {
+                        if let copyText = turn.copyText { CopyButton(text: copyText) }
+                        if !turn.sources.isEmpty {
+                            Text("SOURCES")
+                                .font(.system(.caption2, design: .monospaced, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            ForEach(Array(turn.sources.enumerated()), id: \.element.paper.id) { index, source in
+                                Button("[\(index + 1)]") { open(source.paper) }
+                                    .buttonStyle(.plain)
+                                    .font(.system(.caption, design: .monospaced, weight: .bold))
+                                    .foregroundStyle(.tint)
+                                    .help(source.paper.title)
+                            }
                         }
                     }
                 }
@@ -541,7 +595,7 @@ struct DashboardView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Ask about anything you've saved. Answers come only from your papers, with citations.")
+                Text("Ask about your saved papers (answers cite them), or ask what a concept is and it's taught from scratch.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 ForEach(askSuggestions, id: \.self) { suggestion in
@@ -549,6 +603,19 @@ struct DashboardView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
+                Text("TRY")
+                    .font(.system(.caption2, design: .monospaced, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+                ForEach(explainSuggestions, id: \.self) { suggestion in
+                    Button(suggestion) { session.ask(suggestion, context: modelContext) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                Text("/explain and /ask force a route.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }

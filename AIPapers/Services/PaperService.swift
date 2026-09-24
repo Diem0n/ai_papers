@@ -225,28 +225,6 @@ final class PaperService {
         return (answer, hits)
     }
 
-    /// A concept explanation. Related papers from the archive ground the "in your
-    /// archive" section, and related papers the reader already read or favorited
-    /// anchor the explanation in what they know.
-    func explain(_ concept: String) async throws -> (answer: String, sources: [(paper: Paper, score: Double)]) {
-        let vector = try await embeddingService.embed(text: Self.queryPrefix + concept)
-        let all = try repository.allPapers()
-        let hits = SimilarityService.hybridRank(queryVector: vector, queryText: concept, among: all, limit: 5)
-        let sources = hits.enumerated().map { offset, hit in
-            AskPromptSource(
-                index: offset + 1,
-                title: hit.paper.title,
-                text: String((hit.paper.summary ?? hit.paper.abstractText).replacingOccurrences(of: "\n", with: " ").prefix(600))
-            )
-        }
-        let engaged = all.filter { PicksService.tasteWeight($0) > 0 }
-        let alreadyRead = SimilarityService.rank(query: vector, among: engaged, limit: 2)
-            .filter { $0.score >= 0.45 }
-            .map { $0.paper.title }
-        let answer = try await ollamaService.explain(concept: concept, sources: sources, alreadyRead: alreadyRead)
-        return (answer, hits)
-    }
-
     /// Papers most similar to `paper` among everything already embedded.
     func relatedPapers(to paper: Paper, limit: Int = 3) throws -> [(paper: Paper, score: Double)] {
         let allPapers = try repository.allPapers()
