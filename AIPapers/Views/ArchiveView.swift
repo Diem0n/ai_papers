@@ -56,6 +56,7 @@ struct ArchiveView: View {
     @State private var dateFilter: DateFilter = .allTime
     @State private var unreadOnly = false
     @State private var favoritesOnly = false
+    @State private var collapsedTopics: Set<String> = []
 
     /// Topics actually present, grouped under their area — sub-categories
     /// as nested menus instead of one long flat list.
@@ -116,6 +117,14 @@ struct ArchiveView: View {
         }
     }
 
+    /// Papers grouped by their topic, biggest group first; order inside a
+    /// group follows the chosen sort.
+    private var groupedPapers: [(topic: String, papers: [Paper])] {
+        Dictionary(grouping: filteredPapers) { AnalyticsService.fixedTopic(for: $0) }
+            .map { (topic: $0.key, papers: $0.value) }
+            .sorted { $0.papers.count != $1.papers.count ? $0.papers.count > $1.papers.count : $0.topic < $1.topic }
+    }
+
     private var missingSummaryCount: Int {
         papers.filter { $0.summary == nil }.count
     }
@@ -145,15 +154,33 @@ struct ArchiveView: View {
                 )
             } else {
                 List(selection: $selectedPaper) {
-                    ForEach(filteredPapers) { paper in
-                        PaperRowView(paper: paper, matchScore: isMeaningSearch ? matchScores[paper.id] : nil).tag(paper)
+                    if isMeaningSearch {
+                        // Ranked by how well each paper matches — grouping would hide the ranking.
+                        ForEach(filteredPapers) { paper in
+                            PaperRowView(paper: paper, matchScore: matchScores[paper.id]).tag(paper)
+                        }
+                    } else {
+                        ForEach(groupedPapers, id: \.topic) { group in
+                            Section(isExpanded: expansion(of: group.topic)) {
+                                ForEach(group.papers) { paper in
+                                    PaperRowView(paper: paper, matchScore: nil).tag(paper)
+                                }
+                            } header: {
+                                HStack(spacing: 8) {
+                                    Text(group.topic).font(.headline)
+                                    Text("\(group.papers.count)")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
                     }
                 }
-                .navigationSplitViewColumnWidth(min: 360, ideal: 420)
             }
         }
         .navigationTitle(isFiltering ? "Archive (\(filteredPapers.count) of \(papers.count))" : "Archive (\(papers.count))")
         .navigationSubtitle(isMeaningSearch && !semanticHits.isEmpty ? "Ranked by meaning" : "")
+        .paperInspector($selectedPaper)
         .searchable(text: $searchText, prompt: searchMode == .meaning ? "Describe what you're looking for" : "Search papers")
         .searchScopes($searchMode) {
             ForEach(SearchMode.allCases) { mode in
@@ -187,6 +214,15 @@ struct ArchiveView: View {
                 .disabled(appActivity.isSummarizingAll || missingSummaryCount == 0)
             }
         }
+    }
+
+    private func expansion(of topic: String) -> Binding<Bool> {
+        Binding(
+            get: { !collapsedTopics.contains(topic) },
+            set: { open in
+                if open { collapsedTopics.remove(topic) } else { collapsedTopics.insert(topic) }
+            }
+        )
     }
 
     private func runMeaningSearch() {

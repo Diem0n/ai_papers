@@ -35,32 +35,22 @@ private struct SidebarRow: View {
 private struct SectionSwitcher: ViewModifier {
     let isActive: Bool
     let sections: [AppSection]
-    var compact = false
     @Binding var selection: AppSection?
-
-    private var picker: some View {
-        Picker("Section", selection: Binding(
-            get: { selection ?? sections.first ?? .dashboard },
-            set: { selection = $0 }
-        )) {
-            ForEach(sections) { section in
-                Label(section.rawValue, systemImage: section.systemImage)
-                    .help(section.rawValue)
-                    .tag(section)
-            }
-        }
-        .pickerStyle(.segmented)
-    }
 
     func body(content: Content) -> some View {
         content.toolbar {
             if isActive {
                 ToolbarItem(placement: .principal) {
-                    if compact {
-                        picker.labelStyle(.iconOnly)
-                    } else {
-                        picker.labelStyle(.titleAndIcon)
+                    Picker("Section", selection: Binding(
+                        get: { selection ?? sections.first ?? .dashboard },
+                        set: { selection = $0 }
+                    )) {
+                        ForEach(sections) { section in
+                            Label(section.rawValue, systemImage: section.systemImage).tag(section)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelStyle(.titleAndIcon)
                 }
             }
         }
@@ -167,41 +157,18 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private var sidebarLayout: some View {
-        if selection?.isFullWidth == true {
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                sidebarColumn
-            } detail: {
-                fullWidthPage
-            }
-        } else {
-            listDetailLayout
-        }
-    }
-
-    @ViewBuilder
-    private var tabsLayout: some View {
-        if selection?.isFullWidth == true {
-            NavigationStack {
-                fullWidthPage
-            }
-        } else {
-            listDetailLayout
-        }
-    }
-
-    /// Archive and Graph: list + paper detail with no sidebar, in either
-    /// navigation style. The section switcher is attached to the split view
-    /// itself, i.e. the whole window's toolbar — on the list column it had only
-    /// that column's width to fit in and collapsed into an overflow menu.
-    private var listDetailLayout: some View {
-        NavigationSplitView {
-            contentColumn
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            sidebarColumn
         } detail: {
-            detailColumn
+            page
         }
-        .modifier(SectionSwitcher(isActive: true, sections: visibleSections, compact: true, selection: $selection))
+    }
+
+    private var tabsLayout: some View {
+        NavigationStack {
+            page
+        }
     }
 
     private var sidebarColumn: some View {
@@ -214,11 +181,16 @@ struct ContentView: View {
         .navigationSplitViewColumnWidth(min: 170, ideal: 190)
     }
 
-    /// Dashboard, Analytics and Trend Brief: whole-window pages with no paper detail pane.
+    /// Every section is a whole-window page; paper detail opens in an
+    /// inspector on the pages that list papers (Archive, Graph).
     @ViewBuilder
-    private var fullWidthPage: some View {
+    private var page: some View {
         Group {
             switch selection {
+            case .archive:
+                ArchiveView(selectedPaper: $selectedPaper)
+            case .graph:
+                KnowledgeGraphView(selectedPaper: $selectedPaper)
             case .analytics:
                 AnalyticsView()
             case .trend:
@@ -230,33 +202,6 @@ struct ContentView: View {
             }
         }
         .modifier(SectionSwitcher(isActive: navigationStyle == .tabs, sections: visibleSections, selection: $selection))
-    }
-
-    @ViewBuilder
-    private var contentColumn: some View {
-        Group {
-            switch selection {
-            case .archive:
-                ArchiveView(selectedPaper: $selectedPaper)
-            case .graph:
-                KnowledgeGraphView(selectedPaper: $selectedPaper)
-                    .navigationSplitViewColumnWidth(min: 420, ideal: 700)
-            default:
-                EmptyView() // dashboard, analytics and trend brief are handled by fullWidthPage
-            }
-        }
-        // Set here, on the column itself, so the list can never be dragged (and
-        // then remembered) down to a sliver — the split view restores saved widths.
-        .navigationSplitViewColumnWidth(min: 380, ideal: selection == .graph ? 700 : 460, max: 1100)
-    }
-
-    @ViewBuilder
-    private var detailColumn: some View {
-        if let selectedPaper {
-            PaperDetailView(paper: selectedPaper, onSelectRelated: { self.selectedPaper = $0 })
-        } else {
-            ContentUnavailableView("Select a paper", systemImage: "doc.text")
-        }
     }
 
     // MARK: Status

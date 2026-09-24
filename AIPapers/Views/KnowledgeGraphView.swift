@@ -129,6 +129,7 @@ struct KnowledgeGraphView: View {
             }
         }
         .navigationTitle("Graph")
+        .paperInspector($selectedPaper)
     }
 
     private func nodeColor(for paperID: String) -> Color {

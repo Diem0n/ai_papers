@@ -29,12 +29,6 @@ enum AppSection: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Pages that are a full report rather than a list-plus-detail browser,
-    /// so they get the whole window instead of an empty "Select a paper" pane.
-    var isFullWidth: Bool {
-        self != .archive && self != .graph
-    }
-
     static func hidden(fromCSV csv: String) -> Set<AppSection> {
         Set(csv.split(separator: ",").compactMap { AppSection(rawValue: String($0)) })
     }
