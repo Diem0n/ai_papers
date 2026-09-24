@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="katex.css">
+<style>
+  :root { color-scheme: light dark; --fg: rgba(0,0,0,.86); --muted: rgba(0,0,0,.52); --hot: #4c58d6; --line: rgba(0,0,0,.14); }
+  @media (prefers-color-scheme: dark) { :root { --fg: rgba(255,255,255,.9); --muted: rgba(255,255,255,.55); --hot: #8b93ff; --line: rgba(255,255,255,.16); } }
+  html, body { margin: 0; background: transparent; color: var(--fg); font: 13px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; overflow: hidden; }
+  #root { padding: 0 1px 2px; }
+  section { margin: 0 0 12px; }
+  .label { font: 600 10px ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  section.check .label { color: var(--hot); }
+  .body { white-space: pre-wrap; user-select: text; -webkit-user-select: text; }
+  section.lead .body { font-weight: 600; }
+  details summary { cursor: pointer; color: var(--hot); }
+  details .body { margin-top: 6px; }
+  .katex { font-size: 1.05em; }
+  .katex-display { margin: .5em 0; overflow-x: auto; overflow-y: hidden; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="katex.min.js"></script>
+<script src="auto-render.min.js"></script>
+<script>
+const root = document.getElementById("root");
+const post = () => window.webkit && webkit.messageHandlers.height.postMessage(Math.ceil(root.getBoundingClientRect().height) + 4);
+
+// **bold** → <strong>, everything else stays text (so LaTeX passes through untouched).
+function fill(el, text) {
+  text.split("**").forEach((part, i) => {
+    if (!part) return;
+    if (i % 2) { const s = document.createElement("strong"); s.textContent = part; el.appendChild(s); }
+    else el.appendChild(document.createTextNode(part));
+  });
+}
+
+window.render = function (sections) {
+  root.innerHTML = "";
+  for (const s of sections) {
+    const label = s.label.toLowerCase();
+    const body = document.createElement("div"); body.className = "body"; fill(body, s.body);
+    if (label === "answer") {
+      const d = document.createElement("details"), sum = document.createElement("summary");
+      sum.textContent = "Show the answer"; d.append(sum, body);
+      d.addEventListener("toggle", post);
+      const wrap = document.createElement("section"); wrap.appendChild(d); root.appendChild(wrap);
+      continue;
+    }
+    const sec = document.createElement("section");
+    if (label === "in one line") sec.className = "lead";
+    if (label.startsWith("check")) sec.className = "check";
+    if (s.label) { const l = document.createElement("div"); l.className = "label"; l.textContent = s.label; sec.appendChild(l); }
+    sec.appendChild(body); root.appendChild(sec);
+  }
+  try {
+    renderMathInElement(root, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true }, { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }, { left: "$", right: "$", display: false },
+      ],
+      throwOnError: false,
+    });
+  } catch (e) { /* leave the raw text */ }
+  post();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(post);
+};
+addEventListener("resize", post);
+</script>
+</body>
+</html>

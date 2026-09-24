@@ -10,6 +10,7 @@
 
 import SwiftUI
 import AppKit
+import WebKit
 
 enum ExplanationParser {
     struct Section: Identifiable {
@@ -43,40 +44,88 @@ enum ExplanationParser {
     }
 }
 
+/// The explanation, drawn by KaTeX-enabled HTML (bundled, offline) so equations
+/// typeset properly. It grows to its content; scrolling is left to the parent.
 struct ExplanationView: View {
     let text: String
-    var font: Font = .callout
+    @State private var height: CGFloat = 120
 
     var body: some View {
-        let sections = ExplanationParser.sections(text)
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(sections) { section in
-                if section.label.lowercased() == "answer" {
-                    DisclosureGroup("Show the answer") {
-                        Text(section.body)
-                            .font(font)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 4)
-                    }
-                    .font(font)
-                } else {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if !section.label.isEmpty {
-                            Text(section.label.uppercased())
-                                .font(.system(.caption2, design: .monospaced, weight: .semibold))
-                                .tracking(0.5)
-                                .foregroundStyle(section.label.lowercased().hasPrefix("check") ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                        }
-                        Text(section.body)
-                            .font(section.label.lowercased() == "in one line" ? font.weight(.semibold) : font)
-                            .lineSpacing(3)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
+        ExplanationWebView(sections: ExplanationParser.sections(text), height: $height)
+            .frame(height: height)
+    }
+}
+
+private final class PassThroughWebView: WKWebView {
+    /// The page never scrolls itself; hand wheel events to the surrounding ScrollView.
+    override func scrollWheel(with event: NSEvent) { nextResponder?.scrollWheel(with: event) }
+}
+
+private struct ExplanationWebView: NSViewRepresentable {
+    let sections: [ExplanationParser.Section]
+    @Binding var height: CGFloat
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(WeakHandler(context.coordinator), name: "height")
+        let web = PassThroughWebView(frame: .zero, configuration: configuration)
+        web.setValue(false, forKey: "drawsBackground")
+        web.navigationDelegate = context.coordinator
+        context.coordinator.web = web
+        if let page = Bundle.main.url(forResource: "explanation", withExtension: "html") {
+            web.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())
         }
+        return web
+    }
+
+    func updateNSView(_ web: WKWebView, context: Context) {
+        context.coordinator.setHeight = { height = $0 }
+        context.coordinator.update(sections)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        weak var web: WKWebView?
+        var setHeight: (CGFloat) -> Void = { _ in }
+        private var loaded = false
+        private var pending: [ExplanationParser.Section] = []
+        private var rendered: String?
+
+        func update(_ sections: [ExplanationParser.Section]) {
+            pending = sections
+            if loaded { flush() }
+        }
+
+        private func flush() {
+            let payload = pending.map { ["label": $0.label, "body": $0.body] }
+            guard let data = try? JSONSerialization.data(withJSONObject: payload),
+                  let json = String(data: data, encoding: .utf8), json != rendered else { return }
+            rendered = json
+            web?.evaluateJavaScript("window.render(\(json))")
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            loaded = true
+            flush()
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
+            navigationAction.request.url?.isFileURL == true ? .allow : .cancel
+        }
+
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            if let value = message.body as? Double, value > 0 { setHeight(CGFloat(value)) }
+        }
+    }
+}
+
+private final class WeakHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+    init(_ target: WKScriptMessageHandler) { self.target = target }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
     }
 }
 

@@ -16,6 +16,7 @@ nonisolated enum AppSettingsKeys {
     static let sidebarVisibleByDefault = "sidebarVisibleByDefault"
     static let hiddenSections = "hiddenSections"
     static let forceOffline = "forceOffline"
+    static let askModel = "askModel"
 }
 
 nonisolated enum AppSettings {
@@ -30,6 +31,12 @@ nonisolated enum AppSettings {
         }
         let parsed = csv.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         return parsed.isEmpty ? AppConstants.topics : parsed
+    }
+
+    /// The model that answers Ask and /explain. Empty means "same as summarization".
+    static var askModel: String {
+        let stored = UserDefaults.standard.string(forKey: AppSettingsKeys.askModel)
+        return (stored?.isEmpty == false) ? stored! : ollamaModel
     }
 
     static var ollamaModel: String {

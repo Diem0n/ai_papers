@@ -56,10 +56,10 @@ final class AskSession: ObservableObject {
         Task {
             do {
                 if turn.isExplain {
-                    let text = try await OllamaService().explain(concept: query)
+                    let text = try await OllamaService(model: AppSettings.askModel).explain(concept: query)
                     update(turn.id) { $0.answer = text; $0.isWorking = false }
                 } else {
-                    let service = PaperService(repository: PaperRepository(context: context))
+                    let service = PaperService(repository: PaperRepository(context: context), ollamaService: OllamaService(model: AppSettings.askModel))
                     let result = try await service.ask(query)
                     update(turn.id) {
                         $0.answer = result.answer

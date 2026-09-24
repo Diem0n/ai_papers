@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(AppSettingsKeys.sidebarVisibleByDefault) private var sidebarVisibleByDefault = true
     @AppStorage(AppSettingsKeys.hiddenSections) private var hiddenSectionsCSV = ""
     @AppStorage(AppSettingsKeys.forceOffline) private var forceOffline = false
+    @AppStorage(AppSettingsKeys.askModel) private var askModel = ""
 
     @State private var availableModels: [String] = []
     @State private var modelListError: String?
@@ -61,6 +62,17 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+            Section("Ask") {
+                Picker("Model for Ask and /explain", selection: $askModel) {
+                    Text("Same as summarization").tag("")
+                    ForEach(availableModels, id: \.self) { model in
+                        Text(model).tag(model)
+                    }
+                }
+                Text("A bigger model explains better but answers slower. Summaries, categories and picks keep using the model above.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Topics") {
                 Text("Comma-separated. Used to score and tag papers.")

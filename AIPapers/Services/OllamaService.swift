@@ -180,8 +180,7 @@ nonisolated final class OllamaService {
     /// it breaks), worked example, misconception, and a check question.
     func explain(concept: String) async throws -> String {
         let text = try await generate(prompt: Self.explainPrompt(concept: concept), json: false)
-        // The UI shows plain text, not LaTeX — strip the math delimiters small models add anyway.
-        let trimmed = text.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OllamaServiceError.invalidResponse }
         return trimmed
     }
@@ -363,8 +362,10 @@ nonisolated final class OllamaService {
         Request: \(concept)
 
         Write exactly these eight sections, in this order, each on its own line starting with
-        its bold label written exactly as shown (do not rename or skip any). Plain text only:
-        no headings, tables, code fences or LaTeX (write K_t, not $K_t$).
+        its bold label written exactly as shown (do not rename or skip any). No headings, tables
+        or code fences. Write any mathematics in LaTeX: $...$ for inline symbols and $$...$$ on
+        its own line for a displayed equation (e.g. $\\text{softmax}(z_i)=e^{z_i}/\\sum_j e^{z_j}$).
+        Use math only where it genuinely helps; never put math inside backticks.
 
         **In one line** — the core idea in at most 25 words: plain language first, then the precise term.
         **Why it exists** — the problem it solves or the limitation it removes, in one or two sentences.

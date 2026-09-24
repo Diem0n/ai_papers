@@ -8,7 +8,7 @@
 //    J / →  skip (leave unread)        K / ←  back
 //    R      mark read, next            Q      queue for later (To read), next
 //    F      favorite                   S      generate summary
-//    O      open on arXiv
+//    P      read the full paper here      O      open on arXiv
 //
 //  The queue is fixed when the page opens so papers don't shuffle under
 //  your hands as you mark them.
@@ -21,6 +21,8 @@ struct TriageView: View {
     @Query(sort: \Paper.relevanceScore, order: .reverse) private var papers: [Paper]
     @EnvironmentObject private var appActivity: AppActivity
     @Environment(\.openURL) private var openURL
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var network = NetworkStatus.shared
 
     @State private var queueIDs: [String] = []
     @State private var index = 0
@@ -52,7 +54,7 @@ struct TriageView: View {
         ZStack {
             shortcut("j", .init("j")); shortcut("k", .init("k")); shortcut("r", .init("r"))
             shortcut("q", .init("q")); shortcut("f", .init("f")); shortcut("s", .init("s"))
-            shortcut("o", .init("o"))
+            shortcut("o", .init("o")); shortcut("p", .init("p"))
             Button("") { handle("j") }.keyboardShortcut(.rightArrow, modifiers: [])
             Button("") { handle("k") }.keyboardShortcut(.leftArrow, modifiers: [])
         }
@@ -87,6 +89,14 @@ struct TriageView: View {
                     if paper.isFavorite { chip("★ favorite", tint: true) }
                     if let status = paper.status { chip(status.rawValue, tint: true) }
                 }
+
+                Button {
+                    handle("p")
+                } label: {
+                    Label(PaperPDFService.isDownloaded(paper.id) ? "Read paper (P)" : "Read full paper (P)", systemImage: "doc.richtext")
+                }
+                .disabled(network.isOffline && !PaperPDFService.isDownloaded(paper.id))
+                .help(network.isOffline && !PaperPDFService.isDownloaded(paper.id) ? "Offline — this paper hasn't been downloaded yet" : "Open the full paper in a reader window")
 
                 if let summary = paper.summary {
                     labelled("Summary", summary, ai: true)
@@ -171,7 +181,8 @@ struct TriageView: View {
             hint("Q", "queue")
             hint("F", "favorite")
             hint("S", "summarize")
-            hint("O", "open")
+            hint("P", "full paper")
+            hint("O", "arXiv")
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
@@ -214,8 +225,12 @@ struct TriageView: View {
             advance()
         case "f": paper.isFavorite.toggle()
         case "s": appActivity.summarize(paper)
+        case "p":
+            if !network.isOffline || PaperPDFService.isDownloaded(paper.id) {
+                openWindow(id: "reader", value: ReaderTarget(id: paper.id, title: paper.title))
+            }
         case "o":
-            if !NetworkStatus.shared.isOffline, let url = URL(string: paper.url) { openURL(url) }
+            if !network.isOffline, let url = URL(string: paper.url) { openURL(url) }
         default: break
         }
     }

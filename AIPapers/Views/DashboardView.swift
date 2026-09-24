@@ -575,6 +575,9 @@ struct DashboardView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
+                    // A new answer starts at its top, not wherever the last one was scrolled to.
+                    .id(turn.id)
+                    .defaultScrollAnchor(.top)
                     HStack(spacing: 10) {
                         if let copyText = turn.copyText { CopyButton(text: copyText) }
                         if !turn.sources.isEmpty {
