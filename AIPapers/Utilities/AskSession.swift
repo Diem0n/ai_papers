@@ -17,7 +17,10 @@ final class AskSession: ObservableObject {
     struct Turn: Identifiable {
         let id = UUID()
         let question: String
+        var isExplain = false
         var answer: String?
+        /// For /explain: the last section, held back so the reader can try the check question first.
+        var hiddenAnswer: String?
         var sources: [(paper: Paper, score: Double)] = []
         var error: String?
         var isWorking = true
@@ -30,15 +33,26 @@ final class AskSession: ObservableObject {
     func ask(_ question: String, context: ModelContext) {
         let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isBusy else { return }
-        let turn = Turn(question: trimmed)
+        let command = "/explain"
+        let isExplain = trimmed.lowercased().hasPrefix(command)
+        let concept = String(trimmed.dropFirst(command.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        var turn = Turn(question: trimmed, isExplain: isExplain)
+        if isExplain && concept.isEmpty {
+            turn.error = "Say what to explain, e.g. /explain KV cache"
+            turn.isWorking = false
+            turns.append(turn)
+            return
+        }
         turns.append(turn)
 
         Task {
             let service = PaperService(repository: PaperRepository(context: context))
             do {
-                let result = try await service.ask(trimmed)
+                let result = isExplain ? try await service.explain(concept) : try await service.ask(trimmed)
+                let (body, hidden) = isExplain ? Self.splitAnswer(result.answer) : (result.answer, nil)
                 update(turn.id) {
-                    $0.answer = result.answer
+                    $0.answer = body
+                    $0.hiddenAnswer = hidden
                     $0.sources = result.sources
                     $0.isWorking = false
                 }
@@ -55,6 +69,19 @@ final class AskSession: ObservableObject {
     func clear() {
         guard !isBusy else { return }
         turns.removeAll()
+    }
+
+    /// **bold** labels and line breaks from an explanation; anything unparseable stays plain.
+    static func formatted(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text)
+    }
+
+    /// Separates the trailing "**Answer**" section from an explanation.
+    static func splitAnswer(_ text: String) -> (body: String, answer: String?) {
+        guard let marker = text.range(of: "**Answer", options: .caseInsensitive) else { return (text, nil) }
+        let body = text[..<marker.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+        let answer = text[marker.upperBound...].trimmingCharacters(in: CharacterSet(charactersIn: "*:—–- \n"))
+        return (body, answer.isEmpty ? nil : answer)
     }
 
     private func update(_ id: UUID, _ change: (inout Turn) -> Void) {

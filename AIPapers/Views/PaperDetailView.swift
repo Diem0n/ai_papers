@@ -13,6 +13,7 @@ struct PaperDetailView: View {
     @ObservedObject private var network = NetworkStatus.shared
     @Bindable var paper: Paper
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var appActivity: AppActivity
     var onSelectRelated: (Paper) -> Void = { _ in }
 
@@ -39,11 +40,19 @@ struct PaperDetailView: View {
                 section("Abstract", text: paper.abstractText)
 
                 relatedSection
-
-                actionBar
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        // Pinned, so the primary actions (read the full paper) never scroll out of reach.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actionBar
+                .padding(.leading, 24)
+                .padding(.trailing, 84) // clear of the floating Ask button
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+                .background(.bar)
+                .overlay(alignment: .top) { Divider() }
         }
         .navigationTitle(paper.title)
         .task(id: paper.id) {
@@ -180,6 +189,15 @@ struct PaperDetailView: View {
 
     private var actionBar: some View {
         HStack {
+            Button {
+                openWindow(id: "reader", value: ReaderTarget(id: paper.id, title: paper.title))
+            } label: {
+                Label(PaperPDFService.isDownloaded(paper.id) ? "Read paper" : "Read full paper", systemImage: "doc.richtext")
+            }
+            .disabled(network.isOffline && !PaperPDFService.isDownloaded(paper.id))
+            .help(network.isOffline && !PaperPDFService.isDownloaded(paper.id)
+                  ? "Offline — this paper hasn't been downloaded yet"
+                  : "Read the full paper here (saved locally after the first open)")
             if let url = URL(string: paper.url) {
                 Link(destination: url) {
                     Label("Open on arXiv", systemImage: "arrow.up.right.square")

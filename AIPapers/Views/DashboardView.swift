@@ -499,7 +499,7 @@ struct DashboardView: View {
                 if turn.isWorking {
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("Searching your papers…").font(.callout).foregroundStyle(.secondary)
+                        Text(turn.isExplain ? "Writing an explanation…" : "Searching your papers…").font(.callout).foregroundStyle(.secondary)
                     }
                 } else if let error = turn.error {
                     Label(error, systemImage: "exclamationmark.triangle")
@@ -507,11 +507,22 @@ struct DashboardView: View {
                         .foregroundStyle(.secondary)
                 } else if let answer = turn.answer {
                     ScrollView {
-                        Text(answer)
-                            .font(.callout)
-                            .lineSpacing(3)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(turn.isExplain ? AskSession.formatted(answer) : AttributedString(answer))
+                                .font(.callout)
+                                .lineSpacing(3)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if let hidden = turn.hiddenAnswer {
+                                DisclosureGroup("Show the answer") {
+                                    Text(AskSession.formatted(hidden))
+                                        .font(.callout)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .font(.callout)
+                            }
+                        }
                     }
                     HStack(spacing: 6) {
                         Text("SOURCES")

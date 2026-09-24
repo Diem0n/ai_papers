@@ -49,6 +49,14 @@ struct AIPapersApp: App {
             }
         }
 
+        // The full-paper reader: one window per paper.
+        WindowGroup("Paper", id: "reader", for: ReaderTarget.self) { $target in
+            if let target {
+                PaperReaderView(target: target)
+            }
+        }
+        .defaultSize(width: 900, height: 1000)
+
         Settings {
             SettingsView()
         }

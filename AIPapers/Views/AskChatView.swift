@@ -20,6 +20,8 @@ struct AskChatView: View {
 
     @State private var input = ""
     @State private var blink = 0
+    /// Picked once per panel so the suggestion doesn't change on every redraw.
+    @State private var explainSuggestion = Taxonomy.all.flatMap(\.subtopics).map(\.name).filter { $0 != Taxonomy.otherSubtopic }.randomElement() ?? "attention"
     @FocusState private var inputFocused: Bool
 
     private var suggestions: [String] {
@@ -75,6 +77,13 @@ struct AskChatView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 340)
+            Text("Learning something new? Type /explain and a concept.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+            Button("/explain \(explainSuggestion)") { send("/explain \(explainSuggestion)") }
+                .buttonStyle(.bordered)
             ForEach(suggestions, id: \.self) { suggestion in
                 Button(suggestion) { send(suggestion) }
                     .buttonStyle(.bordered)
@@ -113,18 +122,28 @@ struct AskChatView: View {
             if turn.isWorking {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Searching your papers…").foregroundStyle(.secondary)
+                    Text(turn.isExplain ? "Writing an explanation…" : "Searching your papers…").foregroundStyle(.secondary)
                 }
             } else if let error = turn.error {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
             } else if let answer = turn.answer {
                 HStack(alignment: .top, spacing: 0) {
                     Rectangle().fill(.tint).frame(width: 3)
-                    Text(answer)
+                    Text(turn.isExplain ? AskSession.formatted(answer) : AttributedString(answer))
                         .lineSpacing(3)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 10)
+                }
+                if let hidden = turn.hiddenAnswer {
+                    DisclosureGroup("Show the answer") {
+                        Text(AskSession.formatted(hidden))
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 4)
+                    }
+                    .font(.callout)
                 }
                 if !turn.sources.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
@@ -153,7 +172,7 @@ struct AskChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Ask about your papers…", text: $input)
+            TextField("Ask about your papers, or /explain a concept…", text: $input)
                 .textFieldStyle(.roundedBorder)
                 .focused($inputFocused)
                 .onSubmit { send(input) }
