@@ -26,7 +26,8 @@ struct DashboardView: View {
 
     let onOpenSection: (AppSection) -> Void
 
-    @State private var brief: TrendBrief?
+    @State private var digest: Digest?
+    @State private var narrative: DigestNarrative?
     @State private var selectedPaper: Paper?
     @State private var inspectorShown = false
     @State private var picks: [Pick] = []
@@ -88,7 +89,13 @@ struct DashboardView: View {
             logger.notice("Dashboard loaded with \(allPapers.count, privacy: .public) stored papers")
             appActivity.autoRefreshIfNeeded()
         }
-        .onAppear { brief = TrendBriefStore.loadLatest() }
+        .task(id: allPapers.count) {
+            let built = DigestService.build(allPapers)
+            digest = built
+            // Only text written for exactly these papers; otherwise the card
+            // shows the deterministic summary (the Trend Brief page writes the prose).
+            narrative = DigestStore.load().flatMap { $0.signature == built?.signature ? $0 : nil }
+        }
         .onChange(of: router.askTick) { askFocused = true }
         .task(id: picksKey) { await refreshPicks(force: false) }
     }
@@ -274,18 +281,40 @@ struct DashboardView: View {
         }
     }
 
+    /// The digest at card size: one bottom-line sentence and the top themes.
+    /// The full narrative lives on the Trend Brief page.
     private func briefCard(lines: Int) -> some View {
         BentoCard(title: "Trend brief", action: { onOpenSection(.trend) }) {
-            if let brief {
-                Text(brief.content)
-                    .font(.callout)
-                    .lineLimit(lines)
+            if let digest {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(narrative?.tldr ?? briefFallback(digest))
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(3)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(digest.themes.prefix(max(1, lines / 3))) { theme in
+                            HStack(spacing: 8) {
+                                Text("\(theme.papers.count)")
+                                    .font(.system(.caption, design: .monospaced, weight: .bold))
+                                    .foregroundStyle(.tint)
+                                    .frame(minWidth: 22, alignment: .trailing)
+                                Text(narrative?.themes.first { $0.index == theme.id }?.headline ?? theme.label)
+                                    .font(.callout)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
             } else {
-                Text("No brief yet — it's generated once a day after a refresh.")
+                Text("No brief yet — it appears once papers have been pulled and embedded.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func briefFallback(_ digest: Digest) -> String {
+        guard let lead = digest.themes.first else { return "\(digest.paperCount) new papers this week." }
+        return "\(digest.paperCount) new papers in \(digest.themes.count) themes, led by \(lead.label)."
     }
 
     // MARK: Picks
