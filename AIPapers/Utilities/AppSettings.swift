@@ -15,6 +15,7 @@ nonisolated enum AppSettingsKeys {
     static let navigationStyle = "navigationStyle"
     static let sidebarVisibleByDefault = "sidebarVisibleByDefault"
     static let hiddenSections = "hiddenSections"
+    static let forceOffline = "forceOffline"
 }
 
 nonisolated enum AppSettings {

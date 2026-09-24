@@ -110,6 +110,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var appActivity: AppActivity
+    @ObservedObject private var network = NetworkStatus.shared
     @Query private var allPapers: [Paper]
 
     @AppStorage(AppSettingsKeys.navigationStyle) private var navigationStyleRaw = NavigationStyle.sidebar.rawValue
@@ -277,6 +278,14 @@ struct ContentView: View {
             )
         } else if appActivity.isRefreshing, let progress = appActivity.refreshProgressText {
             BannerView(text: progress, isError: false)
+        } else if network.isOffline {
+            BannerView(
+                text: network.isForcedOffline
+                    ? "Offline mode is on — papers won't be pulled. Turn it off in Settings."
+                    : "You're offline — papers can't be pulled. Everything else still works.",
+                isError: false,
+                systemImage: "wifi.slash"
+            )
         } else if let status = appActivity.refreshStatusMessage {
             BannerView(text: status, isError: false)
         }
@@ -339,10 +348,14 @@ struct ContentView: View {
 struct BannerView: View {
     let text: String
     let isError: Bool
+    var systemImage: String?
 
     var body: some View {
         HStack(spacing: 8) {
-            if isError {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+            } else if isError {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
             }

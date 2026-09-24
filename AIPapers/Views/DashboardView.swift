@@ -26,6 +26,7 @@ struct DashboardView: View {
 
     let onOpenSection: (AppSection) -> Void
 
+    @ObservedObject private var network = NetworkStatus.shared
     @State private var digest: Digest?
     @State private var narrative: DigestNarrative?
     @State private var selectedPaper: Paper?
@@ -82,6 +83,8 @@ struct DashboardView: View {
                     } label: {
                         Label("Refresh", systemImage: "arrow.clockwise")
                     }
+                    .disabled(network.isOffline)
+                    .help(network.isOffline ? "Offline — papers can't be pulled" : "Pull new papers")
                 }
             }
         }

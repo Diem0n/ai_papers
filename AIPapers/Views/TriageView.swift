@@ -215,7 +215,7 @@ struct TriageView: View {
         case "f": paper.isFavorite.toggle()
         case "s": appActivity.summarize(paper)
         case "o":
-            if let url = URL(string: paper.url) { openURL(url) }
+            if !NetworkStatus.shared.isOffline, let url = URL(string: paper.url) { openURL(url) }
         default: break
         }
     }

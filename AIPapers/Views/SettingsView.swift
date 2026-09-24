@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage(AppSettingsKeys.navigationStyle) private var navigationStyleRaw = NavigationStyle.sidebar.rawValue
     @AppStorage(AppSettingsKeys.sidebarVisibleByDefault) private var sidebarVisibleByDefault = true
     @AppStorage(AppSettingsKeys.hiddenSections) private var hiddenSectionsCSV = ""
+    @AppStorage(AppSettingsKeys.forceOffline) private var forceOffline = false
 
     @State private var availableModels: [String] = []
     @State private var modelListError: String?
@@ -43,6 +44,10 @@ struct SettingsView: View {
             }
             Section("Fetching") {
                 Stepper("Papers per refresh: \(maxPapersToFetch)", value: $maxPapersToFetch, in: 10...200, step: 10)
+                Toggle("Work offline", isOn: $forceOffline)
+                Text("Never contact arXiv. Search, Ask, summaries and everything else run locally and keep working; only pulling new papers needs a connection (and is paused automatically when you're offline).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("Summarization") {
                 if availableModels.isEmpty {

@@ -46,8 +46,16 @@ final class AppActivity: ObservableObject {
     private var summarizeTask: Task<Void, Never>?
     private var categorizeTask: Task<Void, Never>?
 
+    /// Set when the launch-time pull was skipped for lack of a connection.
+    private var refreshWhenOnline = false
+
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
+        NetworkStatus.shared.onOnline = { [weak self] in
+            guard let self, self.refreshWhenOnline else { return }
+            self.refreshWhenOnline = false
+            self.refresh()
+        }
     }
 
     private func makeService() -> PaperService {
@@ -67,6 +75,9 @@ final class AppActivity: ObservableObject {
             // arXiv doesn't need hitting again today, but the daily brief is a
             // separate concern — write it quietly, without a loading state.
             writeDailyBriefInBackground()
+        } else if NetworkStatus.shared.isOffline {
+            refreshWhenOnline = true
+            writeDailyBriefInBackground()
         } else {
             refresh()
         }
@@ -74,6 +85,13 @@ final class AppActivity: ObservableObject {
 
     func refresh() {
         guard !isRefreshing else { return }
+        // Only pulling needs the network; the archive, search, Ask and the
+        // rest keep working against local data and the local model.
+        guard !NetworkStatus.shared.isOffline else {
+            refreshErrorMessage = nil
+            refreshStatusMessage = "You're offline — papers can't be pulled. Everything else still works."
+            return
+        }
         isRefreshing = true
         refreshErrorMessage = nil
         refreshStatusMessage = nil

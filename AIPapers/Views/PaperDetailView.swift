@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 
 struct PaperDetailView: View {
+    @ObservedObject private var network = NetworkStatus.shared
     @Bindable var paper: Paper
     @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var appActivity: AppActivity
@@ -183,6 +184,7 @@ struct PaperDetailView: View {
                 Link(destination: url) {
                     Label("Open on arXiv", systemImage: "arrow.up.right.square")
                 }
+                .disabled(network.isOffline)
             }
             Spacer()
             Toggle(isOn: $paper.isFavorite) {
