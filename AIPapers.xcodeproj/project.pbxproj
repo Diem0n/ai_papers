@@ -20,6 +20,13 @@
 			remoteGlobalIDString = BCF76B0A3028AA6200A51C26;
 			remoteInfo = AIPapersWidgetExtension;
 		};
+		BCA100000000000000000009 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BCC4BAE730288CCC00D4BCE3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BCC4BAEE30288CCC00D4BCE3;
+			remoteInfo = AIPapers;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -42,6 +49,7 @@
 		BCF76B0D3028AA6200A51C26 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		BCF76B0F3028AA6200A51C26 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		BCF76B253028AA9F00A51C26 /* AIPapersWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AIPapersWidgetExtension.entitlements; sourceTree = "<group>"; };
+		BCA100000000000000000002 /* AIPapersTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIPapersTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -68,6 +76,11 @@
 			path = AIPapersWidget;
 			sourceTree = "<group>";
 		};
+		BCA10000000000000000000B /* AIPapersTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AIPapersTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,6 +100,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BCA100000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -96,6 +116,7 @@
 				BCF76B253028AA9F00A51C26 /* AIPapersWidgetExtension.entitlements */,
 				BCC4BAF130288CCC00D4BCE3 /* AIPapers */,
 				BCF76B113028AA6200A51C26 /* AIPapersWidget */,
+				BCA10000000000000000000B /* AIPapersTests */,
 				BCF76B0C3028AA6200A51C26 /* Frameworks */,
 				BCC4BAF030288CCC00D4BCE3 /* Products */,
 			);
@@ -106,6 +127,7 @@
 			children = (
 				BCC4BAEF30288CCC00D4BCE3 /* AIPapers.app */,
 				BCF76B0B3028AA6200A51C26 /* AIPapersWidgetExtension.appex */,
+				BCA100000000000000000002 /* AIPapersTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -168,6 +190,29 @@
 			productReference = BCF76B0B3028AA6200A51C26 /* AIPapersWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		BCA100000000000000000001 /* AIPapersTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BCA100000000000000000006 /* Build configuration list for PBXNativeTarget "AIPapersTests" */;
+			buildPhases = (
+				BCA100000000000000000003 /* Sources */,
+				BCA100000000000000000004 /* Frameworks */,
+				BCA100000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BCA10000000000000000000A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BCA10000000000000000000B /* AIPapersTests */,
+			);
+			name = AIPapersTests;
+			packageProductDependencies = (
+			);
+			productName = AIPapersTests;
+			productReference = BCA100000000000000000002 /* AIPapersTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -183,6 +228,10 @@
 					};
 					BCF76B0A3028AA6200A51C26 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					BCA100000000000000000001 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = BCC4BAEE30288CCC00D4BCE3;
 					};
 				};
 			};
@@ -202,6 +251,7 @@
 			targets = (
 				BCC4BAEE30288CCC00D4BCE3 /* AIPapers */,
 				BCF76B0A3028AA6200A51C26 /* AIPapersWidgetExtension */,
+				BCA100000000000000000001 /* AIPapersTests */,
 			);
 		};
 /* End PBXProject section */
@@ -215,6 +265,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		BCF76B093028AA6200A51C26 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BCA100000000000000000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -238,6 +295,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BCA100000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -245,6 +309,11 @@
 			isa = PBXTargetDependency;
 			target = BCF76B0A3028AA6200A51C26 /* AIPapersWidgetExtension */;
 			targetProxy = BCF76B1D3028AA6300A51C26 /* PBXContainerItemProxy */;
+		};
+		BCA10000000000000000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BCC4BAEE30288CCC00D4BCE3 /* AIPapers */;
+			targetProxy = BCA100000000000000000009 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -503,6 +572,40 @@
 			};
 			name = Release;
 		};
+		BCA100000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4B5R9YYJ5L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Diem0n.AIPapersTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIPapers.app/Contents/MacOS/AIPapers";
+			};
+			name = Debug;
+		};
+		BCA100000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4B5R9YYJ5L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Diem0n.AIPapersTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIPapers.app/Contents/MacOS/AIPapers";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -529,6 +632,15 @@
 			buildConfigurations = (
 				BCF76B213028AA6300A51C26 /* Debug */,
 				BCF76B223028AA6300A51C26 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BCA100000000000000000006 /* Build configuration list for PBXNativeTarget "AIPapersTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BCA100000000000000000007 /* Debug */,
+				BCA100000000000000000008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
