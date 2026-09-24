@@ -198,8 +198,10 @@ nonisolated final class OllamaService {
     }
 
     /// Sends a prompt to /api/generate and returns the model's raw text.
-    private func generate(prompt: String, json: Bool = true) async throws -> String {
-        let request = try makeRequest(prompt: prompt, json: json)
+    /// `contextTokens` raises the model's context window for long inputs
+    /// (e.g. a paper's full text); nil keeps Ollama's default.
+    func generate(prompt: String, json: Bool = true, contextTokens: Int? = nil) async throws -> String {
+        let request = try makeRequest(prompt: prompt, json: json, contextTokens: contextTokens)
 
         let data: Data
         let response: URLResponse
@@ -235,18 +237,21 @@ nonisolated final class OllamaService {
         }
     }
 
-    private func makeRequest(prompt: String, json: Bool) throws -> URLRequest {
+    private func makeRequest(prompt: String, json: Bool, contextTokens: Int? = nil) throws -> URLRequest {
         let body = GenerateRequest(
             model: model,
             prompt: prompt,
             stream: false,
             format: json ? "json" : nil,
             // Free-text answers don't need hidden reasoning tokens first.
-            think: json ? nil : false
+            think: json ? nil : false,
+            options: contextTokens.map { ["num_ctx": $0] }
         )
 
         var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
         request.httpMethod = "POST"
+        // Local generation of a long answer can legitimately take minutes.
+        request.timeoutInterval = 300
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         return request
@@ -429,6 +434,7 @@ nonisolated private struct GenerateRequest: Encodable {
     let stream: Bool
     let format: String?
     let think: Bool?
+    var options: [String: Int]?
 }
 
 nonisolated private struct GenerateResponse: Decodable {

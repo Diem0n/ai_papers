@@ -24,6 +24,7 @@ final class PaperService {
     private let ollamaService: OllamaService
     private let embeddingService: EmbeddingService
     private let trendBriefService: TrendBriefService
+    private let huggingFace = HuggingFaceService()
     private let repository: PaperRepository
 
     init(
@@ -43,7 +44,24 @@ final class PaperService {
     @discardableResult
     func refresh(onProgress: (String) -> Void = { _ in }) async throws -> RefreshResult {
         onProgress("Checking arXiv for new papers…")
-        let incoming = try await arxivService.fetchRecentPapers(maxResults: AppSettings.maxPapersToFetch)
+        // Two sources; either can be down without failing the refresh, but not both.
+        var arxivError: Error?
+        var incoming: [ArxivPaper] = []
+        do {
+            incoming = try await arxivService.fetchRecentPapers(maxResults: AppSettings.maxPapersToFetch)
+        } catch {
+            arxivError = error
+        }
+        if AppSettings.includeHuggingFace {
+            onProgress("Checking Hugging Face daily papers…")
+            let daily = await huggingFaceDaily()
+            let seen = Set(incoming.map(\.id))
+            incoming += daily.map(\.paper).filter { !seen.contains($0.id) }
+            for item in daily { CodeLinkStore.shared.set(item.links, for: item.paper.id) }
+            if daily.isEmpty, let arxivError { throw arxivError }
+        } else if let arxivError {
+            throw arxivError
+        }
         let existingIDs = try repository.existingIDs()
         let newPapers = DeduplicationService.filterNewPapers(incoming, existingIDs: existingIDs)
 
@@ -98,6 +116,35 @@ final class PaperService {
         // model call that used to hold the refresh spinner long after every
         // paper was already saved and usable. AppActivity runs it afterwards.
         return RefreshResult(papersAdded: insertedPapers.count, wasPaused: wasPaused)
+    }
+
+    /// Today's and yesterday's Hugging Face daily papers (the list for "today"
+    /// is often still empty in the morning, UTC). Failures just mean none.
+    private func huggingFaceDaily() async -> [HFDailyPaper] {
+        var result: [HFDailyPaper] = []
+        for offset in [0, -1] {
+            guard let day = Calendar.current.date(byAdding: .day, value: offset, to: .now),
+                  let papers = try? await huggingFace.dailyPapers(on: day) else { continue }
+            result += papers
+        }
+        var seen = Set<String>()
+        return result.filter { seen.insert($0.paper.id).inserted }
+    }
+
+    /// Looks up code, weights and datasets for papers not checked recently.
+    /// Throttled — it's a background courtesy pass, not a blocking step.
+    func updateCodeLinks(for papers: [Paper], limit: Int = 60) async {
+        let store = CodeLinkStore.shared
+        let pending = papers.filter { store.needsCheck($0.id) }.prefix(limit)
+        for paper in pending {
+            if Task.isCancelled || NetworkStatus.shared.isOffline { return }
+            var links = (try? await huggingFace.links(for: paper.id)) ?? store.links[paper.id] ?? .none()
+            if links.githubRepo == nil, let fromAbstract = HuggingFaceService.githubLink(in: paper.abstractText) {
+                links.githubRepo = fromAbstract
+            }
+            store.set(links, for: paper.id)
+            try? await Task.sleep(for: .milliseconds(300))
+        }
     }
 
     /// Synthesizes a cross-paper "where the field is heading" brief, once per

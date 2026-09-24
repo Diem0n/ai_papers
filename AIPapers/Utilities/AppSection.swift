@@ -13,6 +13,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case archive = "Archive"
     case graph = "Graph"
     case analytics = "Analytics"
+    case lab = "Lab"
     case trend = "Trend Brief"
     case triage = "Triage"
 
@@ -24,6 +25,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .archive: "archivebox"
         case .graph: "point.3.connected.trianglepath.dotted"
         case .analytics: "chart.bar.xaxis"
+        case .lab: "flask"
         case .trend: "text.book.closed"
         case .triage: "bolt.horizontal"
         }

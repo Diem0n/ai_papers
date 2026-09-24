@@ -87,6 +87,12 @@ struct TriageView: View {
                     if let sub = paper.subtopic, sub != Taxonomy.otherSubtopic { chip(sub) }
                     chip(paper.publishedAt.formatted(date: .abbreviated, time: .omitted))
                     if paper.isFavorite { chip("★ favorite", tint: true) }
+                    if let fit = InsightStore.shared.currentFit(paper.id), fit.verdict != .no {
+                        chip(fit.verdict.label + " · " + fit.effort.label.lowercased(), tint: true)
+                    }
+                    if let links = CodeLinkStore.shared.links[paper.id], links.hasCode {
+                        chip("code" + (links.githubStars.map { " ★\($0)" } ?? ""))
+                    }
                     if let status = paper.status { chip(status.rawValue, tint: true) }
                 }
 

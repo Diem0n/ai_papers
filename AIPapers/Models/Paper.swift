@@ -41,6 +41,9 @@ final class Paper {
     var readingStatus: String?
     var notes: String?
 
+    /// Whether the reader tried the paper's idea and how it went (see TrialOutcome).
+    var trialOutcome: String?
+
     init(
         id: String,
         title: String,
@@ -58,7 +61,8 @@ final class Paper {
         embedding: [Double]? = nil,
         subtopic: String? = nil,
         readingStatus: String? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        trialOutcome: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -77,5 +81,6 @@ final class Paper {
         self.subtopic = subtopic
         self.readingStatus = readingStatus
         self.notes = notes
+        self.trialOutcome = trialOutcome
     }
 }

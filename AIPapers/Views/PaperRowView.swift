@@ -12,6 +12,7 @@ struct PaperRowView: View {
     let paper: Paper
     /// Set when the row is a search-by-meaning hit: how close the match is.
     var matchScore: Double?
+    @ObservedObject private var codeLinks = CodeLinkStore.shared
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -61,6 +62,12 @@ struct PaperRowView: View {
                         .foregroundStyle(matchScore == nil ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
                     Text("·")
                     Text(AnalyticsService.fixedTopic(for: paper).uppercased())
+                    Text("·")
+                    if let links = codeLinks.links[paper.id], links.hasCode || links.hasWeights {
+                        Text("·")
+                        Text(links.hasCode ? "code" + (links.githubStars.map { " ★\($0)" } ?? "") : "weights")
+                            .foregroundStyle(.green)
+                    }
                     Text("·")
                     Text(paper.summary == nil ? "no summary" : "summarized")
                     Text("·")

@@ -38,6 +38,9 @@ struct AIPapersApp: App {
         .modelContainer(modelContainer)
         .defaultSize(width: 1200, height: 780)
         .commands {
+            CommandGroup(after: .appSettings) {
+                Button("Setup Assistant…") { router.setupTick += 1 }
+            }
             CommandMenu("Go") {
                 ForEach(Array(AppSection.allCases.enumerated()), id: \.element) { index, section in
                     Button(section.rawValue) { router.pendingSection = section }

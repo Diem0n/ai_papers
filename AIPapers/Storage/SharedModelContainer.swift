@@ -42,5 +42,6 @@ enum StoreMigration {
         sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZSUBTOPIC VARCHAR", nil, nil, nil)
         sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZREADINGSTATUS VARCHAR", nil, nil, nil)
         sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZNOTES VARCHAR", nil, nil, nil)
+        sqlite3_exec(db, "ALTER TABLE ZPAPER ADD COLUMN ZTRIALOUTCOME VARCHAR", nil, nil, nil)
     }
 }

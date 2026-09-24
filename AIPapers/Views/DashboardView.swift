@@ -98,6 +98,7 @@ struct DashboardView: View {
             // Only text written for exactly these papers; otherwise the card
             // shows the deterministic summary (the Trend Brief page writes the prose).
             narrative = DigestStore.load().flatMap { $0.signature == built?.signature ? $0 : nil }
+            WidgetSnapshotWriter.write(papers: allPapers, digest: built, narrative: narrative)
         }
         .onChange(of: router.askTick) { askFocused = true }
         .task(id: picksKey) { await refreshPicks(force: false) }
@@ -203,10 +204,21 @@ struct DashboardView: View {
     private func topPapersCard(rows: Int) -> some View {
         // The picks card already features some unread papers; don't show the same ones twice.
         let picked = Set(picks.map(\.id))
+        // Papers judged to apply to your stack rise to the top; ones judged irrelevant sink.
         let unread = allPapers.filter { !$0.isRead && !picked.contains($0.id) }
+            .sorted { stackRank($0) > stackRank($1) }
         let papers = Array((unread.isEmpty ? allPapers : unread).prefix(rows))
         return BentoCard(title: "Top unread", action: { onOpenSection(.archive) }) {
             paperList(papers)
+        }
+    }
+
+    private func stackRank(_ paper: Paper) -> Double {
+        switch InsightStore.shared.currentFit(paper.id)?.verdict {
+        case .applies: paper.relevanceScore + 1
+        case .maybe: paper.relevanceScore + 0.3
+        case .no: paper.relevanceScore - 1
+        case nil: paper.relevanceScore
         }
     }
 
@@ -580,6 +592,7 @@ struct DashboardView: View {
                     .defaultScrollAnchor(.top)
                     HStack(spacing: 10) {
                         if let copyText = turn.copyText { CopyButton(text: copyText) }
+                        if turn.isExplain, let answer = turn.answer { SaveForReviewButton(topic: turn.question, text: answer) }
                         if !turn.sources.isEmpty {
                             Text("SOURCES")
                                 .font(.system(.caption2, design: .monospaced, weight: .semibold))

@@ -18,6 +18,7 @@ struct PaperDetailView: View {
     var onSelectRelated: (Paper) -> Void = { _ in }
 
     @State private var relatedPapers: [(paper: Paper, score: Double)] = []
+    @ObservedObject private var codeLinks = CodeLinkStore.shared
 
     var body: some View {
         ScrollView {
@@ -31,11 +32,15 @@ struct PaperDetailView: View {
 
                 metaRow
 
+                availabilityRow
+
                 Divider()
 
                 workspaceSection
 
                 summarySection
+
+                PaperEngineeringView(paper: paper)
 
                 section("Abstract", text: paper.abstractText)
 
@@ -62,6 +67,9 @@ struct PaperDetailView: View {
             // work awaited directly in this closure.
             let target = paper
             Task { await updateRelatedPapers(for: target) }
+            if CodeLinkStore.shared.needsCheck(target.id), !network.isOffline {
+                Task { await PaperService(repository: PaperRepository(context: modelContext)).updateCodeLinks(for: [target]) }
+            }
         }
     }
 
@@ -74,6 +82,41 @@ struct PaperDetailView: View {
         }
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(.secondary)
+    }
+
+    /// Can I actually try this? Code, weights and datasets, via Hugging Face
+    /// (which absorbed Papers with Code's links) and the abstract itself.
+    @ViewBuilder
+    private var availabilityRow: some View {
+        let links = codeLinks.links[paper.id]
+        HStack(spacing: 8) {
+            if let repo = links?.githubRepo, let url = URL(string: repo) {
+                Link(destination: url) {
+                    Label("Code" + (links?.githubStars.map { " · ★ \($0)" } ?? ""), systemImage: "chevron.left.forwardslash.chevron.right")
+                }
+                .buttonStyle(.bordered)
+                .tint(.green)
+            }
+            if let links, links.models > 0, let url = URL(string: "https://huggingface.co/papers/\(paper.id.replacingOccurrences(of: "arXiv:", with: ""))") {
+                Link(destination: url) {
+                    Label("\(links.models) model\(links.models == 1 ? "" : "s")" + (links.datasets > 0 ? " · \(links.datasets) dataset\(links.datasets == 1 ? "" : "s")" : ""), systemImage: "cube.box")
+                }
+                .buttonStyle(.bordered)
+            }
+            if let votes = links?.upvotes, votes > 0 {
+                Label("\(votes) on Hugging Face", systemImage: "hand.thumbsup")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if links == nil {
+                Text("Checking for code…").font(.caption).foregroundStyle(.tertiary)
+            } else if links?.hasCode == false && links?.hasWeights == false {
+                Label("No public code or weights found yet", systemImage: "questionmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .controlSize(.small)
     }
 
     /// The reader's own layer: where this paper is in their queue, and what they thought.
@@ -91,6 +134,24 @@ struct PaperDetailView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+
+            HStack(spacing: 8) {
+                Text("Tried it?")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Picker("Tried it?", selection: Binding(
+                    get: { paper.trial },
+                    set: { paper.trial = $0 }
+                )) {
+                    Text("—").tag(TrialOutcome?.none)
+                    ForEach(TrialOutcome.allCases) { outcome in
+                        Label(outcome.rawValue, systemImage: outcome.systemImage).tag(TrialOutcome?.some(outcome))
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                Spacer()
+            }
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: Binding(
@@ -187,32 +248,48 @@ struct PaperDetailView: View {
         }
     }
 
+    /// One primary action with its label; the rest icon-only (with tooltips),
+    /// so the bar fits the narrow inspector without truncating.
     private var actionBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             Button {
                 openWindow(id: "reader", value: ReaderTarget(id: paper.id, title: paper.title))
             } label: {
                 Label(PaperPDFService.isDownloaded(paper.id) ? "Read paper" : "Read full paper", systemImage: "doc.richtext")
+                    .fixedSize()
             }
+            .buttonStyle(.borderedProminent)
             .disabled(network.isOffline && !PaperPDFService.isDownloaded(paper.id))
             .help(network.isOffline && !PaperPDFService.isDownloaded(paper.id)
                   ? "Offline — this paper hasn't been downloaded yet"
                   : "Read the full paper here (saved locally after the first open)")
-            if let url = URL(string: paper.url) {
-                Link(destination: url) {
-                    Label("Open on arXiv", systemImage: "arrow.up.right.square")
+            Spacer(minLength: 0)
+            Group {
+                if let url = URL(string: paper.url) {
+                    Link(destination: url) {
+                        Label("Open on arXiv", systemImage: "arrow.up.right.square")
+                    }
+                    .disabled(network.isOffline)
+                    .help("Open on arXiv")
                 }
-                .disabled(network.isOffline)
+                Button {
+                    ExportService.export([paper])
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .help("Export as Markdown (works with Obsidian)")
+                Toggle(isOn: $paper.isFavorite) {
+                    Label("Favorite", systemImage: paper.isFavorite ? "star.fill" : "star")
+                }
+                .toggleStyle(.button)
+                .help(paper.isFavorite ? "Remove from favorites" : "Favorite")
+                Toggle(isOn: $paper.isRead) {
+                    Label("Read", systemImage: paper.isRead ? "checkmark.circle.fill" : "circle")
+                }
+                .toggleStyle(.button)
+                .help(paper.isRead ? "Mark as unread" : "Mark as read")
             }
-            Spacer()
-            Toggle(isOn: $paper.isFavorite) {
-                Label("Favorite", systemImage: paper.isFavorite ? "star.fill" : "star")
-            }
-            .toggleStyle(.button)
-            Toggle(isOn: $paper.isRead) {
-                Label("Read", systemImage: paper.isRead ? "checkmark.circle.fill" : "circle")
-            }
-            .toggleStyle(.button)
+            .labelStyle(.iconOnly)
         }
     }
 

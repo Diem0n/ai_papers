@@ -2,99 +2,232 @@
 //  AIPapersWidget.swift
 //  AIPapersWidget
 //
-//  Shows the daily industry trend brief, not paper titles. WidgetKit has no
-//  scrolling — this shows as much text as the size fits, and taps through to
-//  TrendBriefView for the full, actually-scrollable read.
+//  The daily digest on the desktop. Reads a snapshot the app prepares
+//  (WidgetSnapshot.json) — no networking or models here. Every paper links
+//  straight to it in the app.
+//
+//    small   the count, and the one paper to read next
+//    medium  the bottom line and the top three papers
+//    large   the bottom line, this week's themes, five papers with why they matter
 //
 
 import WidgetKit
 import SwiftUI
-import os
 
-private let logger = Logger(subsystem: "com.Diem0n.AIPapers", category: "Widget")
-
-struct TrendEntry: TimelineEntry {
+struct DigestEntry: TimelineEntry {
     let date: Date
-    let brief: TrendBrief?
+    let snapshot: WidgetSnapshot?
 
-    static let sample = TrendEntry(
-        date: .now,
-        brief: TrendBrief(
-            day: .now,
-            generatedAt: .now,
-            content: "Efficiency and tool-use agents dominate this week, with multiple papers tackling long-context inference cost through sparse attention and dynamic routing. A second cluster focuses on retrieval-augmented agents that fetch tool specifications on demand rather than holding them all in context, suggesting the field is moving toward more composable, memory-efficient agent architectures rather than simply scaling context windows.",
-            paperCount: 15
-        )
-    )
+    static let sample = DigestEntry(date: .now, snapshot: WidgetSnapshot(
+        generatedAt: .now, unread: 38, newToday: 12,
+        tldr: "Agent reliability and cheaper inference dominate: harness design over bigger context.",
+        themes: [.init(label: "RAG · Grounding", count: 28), .init(label: "Agents · Multi-agent", count: 15), .init(label: "Inference · KV cache", count: 9)],
+        papers: [
+            .init(id: "a", title: "Grow the Harness, Not the Context", topic: "Agents", line: "Swap your prompt scaffolds for reusable specialist agents.", fit: "Applies to you", hasCode: true),
+            .init(id: "b", title: "Beyond Top-K: Interpretable Agentic Retrieval", topic: "RAG", line: "Replace fixed top-k with retrieval operations you can inspect.", fit: "Maybe", hasCode: false),
+            .init(id: "c", title: "PagedKV-2: Cheaper Long-Context Serving", topic: "Inference", line: "Cuts KV memory 40% in vLLM-style servers.", fit: nil, hasCode: true),
+            .init(id: "d", title: "Calibration as a First-Class Criterion", topic: "Evaluation", line: "Report calibration next to accuracy in your evals.", fit: nil, hasCode: false),
+            .init(id: "e", title: "FLEET: Entropy-Guided Sampling", topic: "Reasoning", line: "Same accuracy as repeated sampling at a third of the cost.", fit: nil, hasCode: true),
+        ],
+        reviewDue: 2))
 }
 
-struct TrendProvider: TimelineProvider {
-    func placeholder(in context: Context) -> TrendEntry {
-        .sample
+struct DigestProvider: TimelineProvider {
+    func placeholder(in context: Context) -> DigestEntry { .sample }
+
+    func getSnapshot(in context: Context, completion: @escaping (DigestEntry) -> Void) {
+        completion(context.isPreview ? .sample : DigestEntry(date: .now, snapshot: WidgetSnapshot.load()))
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (TrendEntry) -> Void) {
-        completion(context.isPreview ? .sample : fetchEntry())
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<TrendEntry>) -> Void) {
-        let entry = fetchEntry()
-        let nextRefresh = Calendar.current.date(byAdding: .hour, value: 4, to: .now) ?? .now.addingTimeInterval(4 * 3600)
-        completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
-    }
-
-    private func fetchEntry() -> TrendEntry {
-        let latest = TrendBriefStore.loadLatest()
-        let todaysBrief = latest.flatMap { Calendar.current.isDateInToday($0.day) ? $0 : nil }
-        logger.notice("Widget timeline: brief present = \(todaysBrief != nil, privacy: .public)")
-        return TrendEntry(date: .now, brief: todaysBrief)
+    func getTimeline(in context: Context, completion: @escaping (Timeline<DigestEntry>) -> Void) {
+        // The app reloads timelines whenever it writes a new snapshot; this is only a fallback.
+        let next = Calendar.current.date(byAdding: .hour, value: 3, to: .now) ?? .now.addingTimeInterval(3 * 3600)
+        completion(Timeline(entries: [DigestEntry(date: .now, snapshot: WidgetSnapshot.load())], policy: .after(next)))
     }
 }
-
-let trendURL = URL(string: "aipapers://trend")!
 
 struct AIPapersWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
-    let entry: TrendEntry
+    let entry: DigestEntry
 
     var body: some View {
-        Link(destination: trendURL) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Industry Trend", systemImage: "text.book.closed")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                if let brief = entry.brief {
-                    Text(brief.content)
-                        .font(.caption)
-                        .lineLimit(lineLimit)
-                    Spacer(minLength: 0)
-                    Text("Based on \(brief.paperCount) papers — tap to read in full")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else {
+        Group {
+            if let snapshot = entry.snapshot, !snapshot.papers.isEmpty {
+                switch family {
+                case .systemSmall: SmallView(snapshot: snapshot)
+                case .systemMedium: MediumView(snapshot: snapshot)
+                default: LargeView(snapshot: snapshot)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    Header(snapshot: entry.snapshot)
                     Spacer()
-                    Text("No brief yet today")
-                        .font(.subheadline)
+                    Text(entry.snapshot == nil ? "Open AI Papers to prepare your digest." : "You're all caught up.")
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }
+        .containerBackground(for: .widget) {
+            LinearGradient(colors: [Color.accentColor.opacity(0.16), Color.clear], startPoint: .topLeading, endPoint: .center)
+                .background(.background)
+        }
+        .widgetURL(URL(string: "aipapers://trend"))
+    }
+}
+
+private struct Header: View {
+    let snapshot: WidgetSnapshot?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "doc.text.magnifyingglass")
+            Text("AI PAPERS")
+                .tracking(0.6)
+            Spacer(minLength: 4)
+            if let snapshot {
+                Text("\(snapshot.unread) unread")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+        .foregroundStyle(.tint)
+    }
+}
+
+private struct SmallView: View {
+    let snapshot: WidgetSnapshot
+
+    var body: some View {
+        let paper = snapshot.papers[0]
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(snapshot.newToday)")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(.tint)
+                Text("new\ntoday")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(-2)
+            }
+            Spacer(minLength: 2)
+            Text("READ NEXT")
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Text(paper.title)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(3)
+            Chips(paper: paper)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .widgetURL(WidgetSnapshot.paperURL(paper.id))
+    }
+}
+
+private struct MediumView: View {
+    let snapshot: WidgetSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Header(snapshot: snapshot)
+            if let tldr = snapshot.tldr {
+                Text(tldr)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            ForEach(snapshot.papers.prefix(3), id: \.id) { paper in
+                Link(destination: WidgetSnapshot.paperURL(paper.id)) {
+                    HStack(spacing: 6) {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(paper.fit == "Applies to you" ? Color.green : Color.accentColor)
+                            .frame(width: 3)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(paper.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+                            Chips(paper: paper)
+                        }
+                    }
                 }
             }
-            .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .containerBackground(.fill.tertiary, for: .widget)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+}
 
-    private var lineLimit: Int {
-        switch family {
-        case .systemSmall: 5
-        case .systemMedium: 5
-        case .systemLarge: 15
-        case .systemExtraLarge: 24
-        default: 5
+private struct LargeView: View {
+    let snapshot: WidgetSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Header(snapshot: snapshot)
+            if let tldr = snapshot.tldr {
+                Text(tldr)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(2)
+            }
+            if !snapshot.themes.isEmpty {
+                HStack(spacing: 5) {
+                    ForEach(snapshot.themes.prefix(3), id: \.self) { theme in
+                        Text("\(theme.count) \(theme.label)")
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .lineLimit(1)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.14), in: Capsule())
+                    }
+                }
+            }
+            Divider()
+            ForEach(snapshot.papers.prefix(5), id: \.id) { paper in
+                Link(destination: WidgetSnapshot.paperURL(paper.id)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(paper.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                        if let line = paper.line {
+                            Text(line)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Chips(paper: paper)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            if snapshot.reviewDue > 0 {
+                Label("\(snapshot.reviewDue) review card\(snapshot.reviewDue == 1 ? "" : "s") due", systemImage: "rectangle.stack")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tint)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct Chips: View {
+    let paper: WidgetSnapshot.Item
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(paper.topic.uppercased())
+            if let fit = paper.fit, fit != "Not for your stack" {
+                Text("·")
+                Text(fit == "Applies to you" ? "FOR YOU" : "MAYBE")
+                    .foregroundStyle(fit == "Applies to you" ? .green : .orange)
+            }
+            if paper.hasCode {
+                Text("·")
+                Text("CODE").foregroundStyle(.green)
+            }
+        }
+        .font(.system(size: 9, weight: .medium, design: .monospaced))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 }
 
@@ -102,29 +235,15 @@ struct AIPapersWidget: Widget {
     let kind: String = "AIPapersWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: TrendProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: DigestProvider()) { entry in
             AIPapersWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("AI Papers Trend Brief")
-        .description("Where AI engineering is heading, synthesized daily from your papers.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
+        .configurationDisplayName("AI Papers Digest")
+        .description("What to read next, ranked for your stack, with this week's themes.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
-#Preview(as: .systemSmall) {
-    AIPapersWidget()
-} timeline: {
-    TrendEntry.sample
-}
-
-#Preview(as: .systemMedium) {
-    AIPapersWidget()
-} timeline: {
-    TrendEntry.sample
-}
-
-#Preview(as: .systemLarge) {
-    AIPapersWidget()
-} timeline: {
-    TrendEntry.sample
-}
+#Preview(as: .systemSmall) { AIPapersWidget() } timeline: { DigestEntry.sample }
+#Preview(as: .systemMedium) { AIPapersWidget() } timeline: { DigestEntry.sample }
+#Preview(as: .systemLarge) { AIPapersWidget() } timeline: { DigestEntry.sample }

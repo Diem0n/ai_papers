@@ -141,7 +141,10 @@ struct AskChatView: View {
                     }
                     .padding(.leading, 10)
                 }
-                if let copyText = turn.copyText { CopyButton(text: copyText) }
+                HStack(spacing: 14) {
+                    if let copyText = turn.copyText { CopyButton(text: copyText) }
+                    if turn.isExplain, let answer = turn.answer { SaveForReviewButton(topic: turn.question, text: answer) }
+                }
                 if !turn.sources.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(turn.sources.enumerated()), id: \.element.paper.id) { index, source in

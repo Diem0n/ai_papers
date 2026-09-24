@@ -152,3 +152,33 @@ struct CopyButton: View {
         .help("Copy the answer")
     }
 }
+
+/// Turns an explanation's "Check yourself" question into a spaced-review card.
+struct SaveForReviewButton: View {
+    let topic: String
+    let text: String
+    @ObservedObject private var reviews = ReviewStore.shared
+
+    private var card: (question: String, answer: String)? {
+        let sections = ExplanationParser.sections(text)
+        guard let question = sections.first(where: { $0.label.lowercased().hasPrefix("check") })?.body,
+              let answer = sections.first(where: { $0.label.lowercased() == "answer" })?.body else { return nil }
+        return (question, answer)
+    }
+
+    var body: some View {
+        if let card {
+            let saved = reviews.contains(question: card.question)
+            Button {
+                reviews.add(topic: topic, question: card.question, answer: card.answer)
+            } label: {
+                Label(saved ? "In review" : "Save for review", systemImage: saved ? "checkmark" : "rectangle.stack.badge.plus")
+                    .font(.caption)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(saved ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
+            .disabled(saved)
+            .help("The check question comes back after 1, 3, 7, 16 and 35 days in the Lab")
+        }
+    }
+}

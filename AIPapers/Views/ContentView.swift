@@ -111,6 +111,7 @@ struct ContentView: View {
     @State private var selectedPaper: Paper?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var askOpen = false
+    @State private var showOnboarding = !UserDefaults.standard.bool(forKey: AppSettingsKeys.onboardingDone)
 
     private var navigationStyle: NavigationStyle {
         NavigationStyle(rawValue: navigationStyleRaw) ?? .sidebar
@@ -144,6 +145,8 @@ struct ContentView: View {
         .onChange(of: router.pendingPaperID, handlePendingPaperID)
         .onChange(of: router.pendingTrendOpen, handlePendingTrendOpen)
         .onChange(of: router.pendingSection, handlePendingSection)
+        .sheet(isPresented: $showOnboarding) { OnboardingView() }
+        .onChange(of: router.setupTick) { showOnboarding = true }
         .onChange(of: router.askTick) { if selection != .dashboard { askOpen.toggle() } }
     }
 
@@ -193,6 +196,8 @@ struct ContentView: View {
                 KnowledgeGraphView(selectedPaper: $selectedPaper)
             case .analytics:
                 AnalyticsView()
+            case .lab:
+                LabView()
             case .trend:
                 TrendBriefView()
             case .triage:
@@ -240,6 +245,7 @@ struct ContentView: View {
         switch item {
         case .dashboard, .triage: unreadCount > 0 ? unreadCount : nil
         case .archive: allPapers.count
+        case .lab: ReviewStore.shared.due.isEmpty ? nil : ReviewStore.shared.due.count
         case .graph, .analytics, .trend: nil
         }
     }

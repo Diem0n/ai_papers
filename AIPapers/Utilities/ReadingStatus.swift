@@ -24,7 +24,31 @@ enum ReadingStatus: String, CaseIterable, Identifiable {
     }
 }
 
+/// The lab notebook: did you try the idea, and did it hold up in your system?
+enum TrialOutcome: String, CaseIterable, Identifiable {
+    case planned = "Want to try"
+    case trying = "Trying"
+    case worked = "Worked"
+    case failed = "Didn't work"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .planned: "flag"
+        case .trying: "hammer"
+        case .worked: "checkmark.seal"
+        case .failed: "xmark.octagon"
+        }
+    }
+}
+
 extension Paper {
+    var trial: TrialOutcome? {
+        get { trialOutcome.flatMap(TrialOutcome.init(rawValue:)) }
+        set { trialOutcome = newValue?.rawValue }
+    }
+
     var status: ReadingStatus? {
         get { readingStatus.flatMap(ReadingStatus.init(rawValue:)) }
         set { readingStatus = newValue?.rawValue }

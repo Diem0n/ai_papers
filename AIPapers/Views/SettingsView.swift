@@ -15,12 +15,31 @@ struct SettingsView: View {
     @AppStorage(AppSettingsKeys.hiddenSections) private var hiddenSectionsCSV = ""
     @AppStorage(AppSettingsKeys.forceOffline) private var forceOffline = false
     @AppStorage(AppSettingsKeys.askModel) private var askModel = ""
+    @AppStorage(AppSettingsKeys.includeHuggingFace) private var includeHuggingFace = true
+    @AppStorage(AppSettingsKeys.stackProfile) private var stackProfile = ""
 
     @State private var availableModels: [String] = []
     @State private var modelListError: String?
 
     var body: some View {
         Form {
+            Section("Your stack") {
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $stackProfile)
+                        .font(.body)
+                        .frame(minHeight: 90)
+                    if stackProfile.isEmpty {
+                        Text("e.g. RAG over 2M support docs: pgvector + BM25 hybrid, Llama 3.1 8B on vLLM, 2×A100, p95 latency budget 800 ms, evals with Ragas.")
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 1)
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
+                Text("What you build and run: models, serving, data, hardware, constraints. Each paper is judged against this — does it apply, what would change, how much work. It never leaves your Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("Navigation") {
                 Picker("Layout", selection: $navigationStyleRaw) {
                     ForEach(NavigationStyle.allCases) { style in
@@ -45,6 +64,10 @@ struct SettingsView: View {
             }
             Section("Fetching") {
                 Stepper("Papers per refresh: \(maxPapersToFetch)", value: $maxPapersToFetch, in: 10...200, step: 10)
+                Toggle("Include Hugging Face daily papers", isOn: $includeHuggingFace)
+                Text("The papers the community upvotes each day, next to the newest arXiv submissions. Code, model and dataset links come from Hugging Face either way (it took over Papers with Code's links).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Work offline", isOn: $forceOffline)
                 Text("Never contact arXiv. Search, Ask, summaries and everything else run locally and keep working; only pulling new papers needs a connection (and is paused automatically when you're offline).")
                     .font(.caption)
@@ -64,13 +87,13 @@ struct SettingsView: View {
                 }
             }
             Section("Ask") {
-                Picker("Model for Ask and /explain", selection: $askModel) {
+                Picker("Model for Ask, /explain and Lab", selection: $askModel) {
                     Text("Same as summarization").tag("")
                     ForEach(availableModels, id: \.self) { model in
                         Text(model).tag(model)
                     }
                 }
-                Text("A bigger model explains better but answers slower. Summaries, categories and picks keep using the model above.")
+                Text("Also judges stack fit, extracts claims and writes implementation plans. A bigger model is more accurate but slower. Summaries, categories and picks keep using the model above.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

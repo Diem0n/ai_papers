@@ -56,6 +56,8 @@ struct ArchiveView: View {
     @State private var dateFilter: DateFilter = .allTime
     @State private var unreadOnly = false
     @State private var favoritesOnly = false
+    @State private var codeOnly = false
+    @ObservedObject private var codeLinks = CodeLinkStore.shared
     @State private var collapsedTopics: Set<String> = []
 
     /// Topics actually present, grouped under their area — sub-categories
@@ -70,7 +72,7 @@ struct ArchiveView: View {
     }
 
     private var isFiltering: Bool {
-        topicFilter != nil || statusFilter != nil || dateFilter != .allTime || unreadOnly || favoritesOnly
+        topicFilter != nil || statusFilter != nil || dateFilter != .allTime || unreadOnly || favoritesOnly || codeOnly
     }
 
     private var isMeaningSearch: Bool {
@@ -105,6 +107,9 @@ struct ArchiveView: View {
         }
         if favoritesOnly {
             result = result.filter { $0.isFavorite }
+        }
+        if codeOnly {
+            result = result.filter { codeLinks.links[$0.id].map { $0.hasCode || $0.hasWeights } ?? false }
         }
         if isMeaningSearch { return result } // already ordered by how well it matches
         switch sortOrder {
@@ -288,6 +293,7 @@ struct ArchiveView: View {
             Section {
                 Toggle("Unread Only", isOn: $unreadOnly)
                 Toggle("Favorites Only", isOn: $favoritesOnly)
+                Toggle("Has Code or Weights", isOn: $codeOnly)
             }
             if isFiltering {
                 Section {
@@ -297,6 +303,7 @@ struct ArchiveView: View {
                         dateFilter = .allTime
                         unreadOnly = false
                         favoritesOnly = false
+                        codeOnly = false
                     }
                 }
             }

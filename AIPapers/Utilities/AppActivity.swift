@@ -51,6 +51,7 @@ final class AppActivity: ObservableObject {
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
+        LabBatch.shared.container = modelContainer
         NetworkStatus.shared.onOnline = { [weak self] in
             guard let self, self.refreshWhenOnline else { return }
             self.refreshWhenOnline = false
@@ -118,6 +119,7 @@ final class AppActivity: ObservableObject {
             }
             self.isRefreshing = false
             self.refreshProgressText = nil
+            WidgetSnapshotWriter.refresh(self.modelContainer)
             self.writeDailyBriefInBackground()
         }
     }
@@ -128,8 +130,14 @@ final class AppActivity: ObservableObject {
         guard !isWritingBrief else { return }
         isWritingBrief = true
         Task {
-            await self.makeService().generateTrendBriefIfNeeded()
+            let service = self.makeService()
+            await service.generateTrendBriefIfNeeded()
             self.isWritingBrief = false
+            // Background upkeep after the brief: code/weights links for papers
+            // not checked lately (newest first — those change most).
+            if !NetworkStatus.shared.isOffline, let papers = try? PaperRepository(context: ModelContext(self.modelContainer)).allPapers() {
+                await service.updateCodeLinks(for: papers.sorted { $0.discoveredAt > $1.discoveredAt })
+            }
         }
     }
 
