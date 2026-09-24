@@ -1,0 +1,287 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    color-scheme: light dark;
+    --fg: rgba(0,0,0,.86); --muted: rgba(0,0,0,.52); --line: rgba(0,0,0,.14);
+    --card: rgba(255,255,255,.72); --hot: #4c58d6; --cross: rgba(0,0,0,.55);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: rgba(255,255,255,.9); --muted: rgba(255,255,255,.55); --line: rgba(255,255,255,.16);
+            --card: rgba(38,38,42,.72); --hot: #8b93ff; --cross: rgba(255,255,255,.7); }
+  }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none;
+    font: 12px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--fg); }
+  svg { position: absolute; inset: 0; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .card { position: fixed; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); padding: 12px 14px; box-sizing: border-box; }
+  #panel { left: 16px; top: 16px; width: 300px; max-height: calc(100vh - 168px); overflow: auto; }
+  #legend { right: 16px; top: 16px; min-width: 170px; }
+  #controls { left: 16px; bottom: 16px; width: 300px; }
+  body.compact #panel, body.compact #controls { width: 232px; }
+  body.compact #legend { display: none; }
+  .eyebrow { font: 600 10px ui-monospace, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  h3 { margin: 0 0 6px; font-size: 14px; line-height: 1.3; }
+  .muted { color: var(--muted); }
+  .hint { color: var(--muted); line-height: 1.45; margin: 6px 0 10px; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .row .grow { flex: 1; min-width: 0; }
+  .row .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 3px; border-radius: 2px; background: var(--hot); opacity: .7; margin-top: 3px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .tag { font: 9px ui-monospace, Menlo, monospace; padding: 1px 5px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+  .hoverable { cursor: default; border-radius: 6px; margin: 0 -6px; padding-left: 6px; padding-right: 6px; }
+  .hoverable:hover { background: var(--line); }
+  label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  input[type=range] { width: 100%; accent-color: var(--hot); margin: 0 0 8px; }
+  .chk { justify-content: flex-start; gap: 8px; margin: 0; }
+
+  .link { fill: none; pointer-events: none; }
+  .link.i { stroke-opacity: .35; }
+  .link.x { stroke: var(--cross); stroke-opacity: .17; }
+  .link.hot { stroke: var(--hot); stroke-opacity: .95; stroke-width: 1.6px; }
+  .link.dim { stroke-opacity: .03; }
+  .leaf { cursor: pointer; }
+  .leaf.dim { opacity: .16; }
+  .leaf.sel .core { stroke: var(--hot); stroke-width: 2.2px; }
+  .leaf .fav { fill: none; stroke: #e5b13a; stroke-width: 1.4px; }
+  .arc { cursor: default; }
+  .tl { font-size: 11px; fill: var(--fg); cursor: default; }
+</style>
+</head>
+<body>
+<svg id="viz"></svg>
+<div id="panel" class="card"></div>
+<div id="legend" class="card"></div>
+<div id="controls" class="card">
+  <label><span>Similarity at least</span><span id="minv" class="mono"></span></label>
+  <input type="range" id="strength">
+  <label class="chk"><input type="checkbox" id="cross"> Only links across topics</label>
+</div>
+<script src="d3.min.js"></script>
+<script>
+const PALETTE = ["#6c7bf0", "#f0a04b", "#3fb8a5", "#e26d8f", "#4fc3f7", "#b5c94b", "#8a8f98", "#6b7078"];
+const svg = d3.select("#viz"), panel = d3.select("#panel"), legend = d3.select("#legend");
+let DATA = null, L = [], leaves = [], linkSel, leafSel, minScore = 0, crossOnly = false, selectedID = null;
+
+const color = area => PALETTE[Math.max(0, DATA.areas.indexOf(area)) % PALETTE.length];
+const pct = v => Math.round(v * 100) + "%";
+const trunc = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+const post = id => window.webkit && webkit.messageHandlers.select.postMessage(id);
+const shown = l => l.score >= minScore && (!crossOnly || l.cross);
+const paperOf = leaf => leaf.data.paper;
+
+window.render = function (data) {
+  DATA = data;
+  const scores = data.links.map(l => l.score);
+  const lo = d3.min(scores) ?? 0, hi = d3.max(scores) ?? 1;
+  const s = document.getElementById("strength");
+  s.min = lo; s.max = hi; s.step = 0.005;
+  if (minScore < lo || minScore > hi) minScore = lo;
+  s.value = minScore;
+  draw();
+};
+window.setSelected = function (id) { selectedID = id; if (leafSel) leafSel.classed("sel", d => paperOf(d).id === selectedID); };
+
+function draw() {
+  if (!DATA) return;
+  const W = innerWidth, H = innerHeight;
+  svg.attr("width", W).attr("height", H).selectAll("*").remove();
+  // Narrow (e.g. with the paper inspector open): slimmer side panels, no legend. Otherwise leave room
+  // for the rotated topic labels (~110px each side), the panel on the left and the legend on the right.
+  const compact = W < 1000;
+  document.body.classList.toggle("compact", compact);
+  const left = compact ? 260 : 330, right = compact ? 0 : 190;
+  const R = Math.max(70, Math.min((W - left - right) / 2 - 115, H / 2 - 120));
+  const cx = left + (W - left - right) / 2, cy = H / 2;
+
+  // Area → Topic → Subtopic → paper. Order is stable so the ring doesn't reshuffle.
+  const areaOrder = a => DATA.areas.indexOf(a);
+  const rootData = { kind: "root", children: [] };
+  for (const [area, aRows] of d3.groups(DATA.nodes, d => d.area).sort((a, b) => areaOrder(a[0]) - areaOrder(b[0]))) {
+    const aN = { kind: "area", name: area, children: [] }; rootData.children.push(aN);
+    for (const [topic, tRows] of d3.groups(aRows, d => d.topic).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))) {
+      const tN = { kind: "topic", name: topic, area, children: [] }; aN.children.push(tN);
+      for (const [sub, sRows] of d3.groups(tRows, d => d.subtopic).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))) {
+        tN.children.push({ kind: "sub", name: sub, children: sRows.sort((a, b) => b.relevance - a.relevance).map(p => ({ kind: "paper", paper: p })) });
+      }
+    }
+  }
+  const root = d3.hierarchy(rootData);
+  d3.cluster().size([2 * Math.PI, R]).separation((a, b) =>
+    a.parent === b.parent ? 1 :
+    a.parent.parent === b.parent.parent ? 1.8 :
+    a.parent.parent.parent === b.parent.parent.parent ? 3 : 4)(root);
+  leaves = root.leaves();
+  const step = 2 * Math.PI / Math.max(1, leaves.length);
+  const span = n => { const xs = n.leaves().map(l => l.x); return [d3.min(xs) - step * .45, d3.max(xs) + step * .45]; };
+  const g = svg.append("g").attr("transform", `translate(${cx},${cy})`);
+
+  // Outer rings: one arc per topic, a thin one per area, labels for topics.
+  const areas = root.children, topics = areas.flatMap(a => a.children);
+  const arcTopic = d3.arc().innerRadius(R + 12).outerRadius(R + 22);
+  const arcArea = d3.arc().innerRadius(R + 25).outerRadius(R + 28);
+  g.selectAll(".arc.area").data(areas).join("path").attr("class", "arc area")
+    .attr("fill", n => color(n.data.name)).attr("opacity", .55)
+    .attr("d", n => { const [a, b] = span(n); return arcArea({ startAngle: a, endAngle: b }); })
+    .on("mouseenter", (e, n) => focusArea(n.data.name)).on("mouseleave", clearFocus);
+  g.selectAll(".arc.topic").data(topics).join("path").attr("class", "arc topic")
+    .attr("fill", n => color(n.data.area)).attr("opacity", .9)
+    .attr("d", n => { const [a, b] = span(n); return arcTopic({ startAngle: a, endAngle: b }); })
+    .on("mouseenter", (e, n) => focusTopic(n.data.name)).on("mouseleave", clearFocus);
+  g.selectAll(".tl").data(topics).join("text").attr("class", "tl")
+    .each(function (n) {
+      const [a, b] = span(n), mid = (a + b) / 2, flip = mid > Math.PI;
+      d3.select(this)
+        .attr("transform", `rotate(${mid * 180 / Math.PI - 90}) translate(${R + 34},0)${flip ? " rotate(180)" : ""}`)
+        .attr("text-anchor", flip ? "end" : "start").attr("dy", "0.32em")
+        .style("display", (b - a) * R < 30 ? "none" : null).text(n.data.name);
+    })
+    .on("mouseenter", (e, n) => focusTopic(n.data.name)).on("mouseleave", clearFocus);
+
+  // Links, bundled along the hierarchy so related groups share a path.
+  const byId = new Map(leaves.map(l => [paperOf(l).id, l]));
+  L = DATA.links.map(l => ({ ...l, s: byId.get(l.source), t: byId.get(l.target) })).filter(l => l.s && l.t);
+  L.forEach(l => { l.cross = paperOf(l.s).topic !== paperOf(l.t).topic; });
+  const line = d3.lineRadial().curve(d3.curveBundle.beta(0.85)).radius(d => d.y).angle(d => d.x);
+  const [lo, hi] = d3.extent(L, l => l.score);
+  const width = d3.scaleLinear().domain([lo ?? 0, hi ?? 1]).range([.7, 1.5]);
+  linkSel = g.append("g").selectAll("path").data(L).join("path")
+    .attr("class", l => "link " + (l.cross ? "x" : "i"))
+    .attr("stroke", l => l.cross ? null : color(paperOf(l.s).area))
+    .attr("stroke-width", l => width(l.score))
+    .attr("d", l => line(l.s.path(l.t)));
+
+  leafSel = g.append("g").selectAll("g").data(leaves).join("g").attr("class", "leaf")
+    .attr("transform", d => `rotate(${d.x * 180 / Math.PI - 90}) translate(${d.y},0)`)
+    .classed("sel", d => paperOf(d).id === selectedID)
+    .on("mouseenter", (e, d) => focusLeaf(d)).on("mouseleave", clearFocus)
+    .on("click", (e, d) => post(paperOf(d).id));
+  leafSel.append("circle").attr("r", 9).attr("fill", "transparent");
+  leafSel.append("circle").attr("class", "core").attr("r", d => 2.3 + paperOf(d).relevance * 2.6)
+    .attr("fill", d => color(paperOf(d).area)).attr("opacity", d => paperOf(d).isRead ? .45 : 1);
+  leafSel.filter(d => paperOf(d).isFavorite).append("circle").attr("class", "fav").attr("r", d => 5 + paperOf(d).relevance * 2.6);
+
+  drawLegend();
+  applyLinkVisibility();
+}
+
+function applyLinkVisibility() {
+  if (!linkSel) return;
+  linkSel.style("display", l => shown(l) ? null : "none");
+  document.getElementById("minv").textContent = minScore.toFixed(2);
+  clearFocus();
+}
+
+function drawLegend() {
+  const counts = d3.rollup(DATA.nodes, v => v.length, d => d.area);
+  legend.html("");
+  legend.append("div").attr("class", "eyebrow").text("Areas");
+  legend.selectAll(".row").data(DATA.areas.filter(a => counts.has(a))).join("div").attr("class", "row hoverable")
+    .on("mouseenter", (e, a) => focusArea(a)).on("mouseleave", clearFocus)
+    .call(r => {
+      r.append("span").attr("class", "dot").style("background", a => color(a));
+      r.append("span").attr("class", "grow name").text(a => a);
+      r.append("span").attr("class", "mono muted").text(a => counts.get(a));
+    });
+}
+
+// ---- focus: dim everything except a chosen set of links and papers ----
+function apply(linkTest, ids) {
+  linkSel.classed("hot", l => shown(l) && linkTest(l)).classed("dim", l => !(shown(l) && linkTest(l)));
+  leafSel.classed("dim", d => !ids.has(paperOf(d).id));
+}
+function endpoints(links) {
+  const ids = new Set();
+  links.forEach(l => { ids.add(paperOf(l.s).id); ids.add(paperOf(l.t).id); });
+  return ids;
+}
+function clearFocus() {
+  if (!linkSel) return;
+  linkSel.classed("hot", false).classed("dim", false);
+  leafSel.classed("dim", false);
+  showOverview();
+}
+function focusLeaf(d) {
+  const mine = L.filter(l => shown(l) && (l.s === d || l.t === d));
+  const ids = endpoints(mine); ids.add(paperOf(d).id);
+  apply(l => l.s === d || l.t === d, ids);
+  showPaper(d, mine);
+}
+function focusTopic(name) {
+  const touching = L.filter(l => shown(l) && (paperOf(l.s).topic === name || paperOf(l.t).topic === name));
+  const ids = endpoints(touching);
+  leaves.filter(d => paperOf(d).topic === name).forEach(d => ids.add(paperOf(d).id));
+  apply(l => paperOf(l.s).topic === name || paperOf(l.t).topic === name, ids);
+  showOverview(name);
+}
+function focusArea(name) {
+  const touching = L.filter(l => shown(l) && (paperOf(l.s).area === name || paperOf(l.t).area === name));
+  const ids = endpoints(touching);
+  leaves.filter(d => paperOf(d).area === name).forEach(d => ids.add(paperOf(d).id));
+  apply(l => paperOf(l.s).area === name || paperOf(l.t).area === name, ids);
+}
+function focusPair(a, b) {
+  const test = l => l.cross && ((paperOf(l.s).topic === a && paperOf(l.t).topic === b) || (paperOf(l.s).topic === b && paperOf(l.t).topic === a));
+  apply(test, endpoints(L.filter(l => shown(l) && test(l))));
+}
+
+// ---- side panel ----
+function showOverview(topic) {
+  const vis = L.filter(shown);
+  const cross = vis.filter(l => l.cross);
+  const pairs = d3.rollups(cross, v => v.length, l => [paperOf(l.s).topic, paperOf(l.t).topic].sort().join("\u0000"))
+    .map(([k, n]) => ({ a: k.split("\u0000")[0], b: k.split("\u0000")[1], n }))
+    .filter(p => !topic || p.a === topic || p.b === topic)
+    .sort((x, y) => y.n - x.n).slice(0, 6);
+  panel.html("");
+  panel.append("div").attr("class", "eyebrow").text(topic ? "Topic" : "Connections");
+  if (topic) {
+    const n = DATA.nodes.filter(d => d.topic === topic).length;
+    panel.append("h3").text(topic);
+    panel.append("div").attr("class", "muted mono").text(`${n} papers · ${vis.filter(l => paperOf(l.s).topic === topic || paperOf(l.t).topic === topic).length} links`);
+  } else {
+    panel.append("h3").text(`${DATA.nodes.length} papers, ${vis.length} links`);
+    panel.append("div").attr("class", "muted mono").text(vis.length ? `${Math.round(100 * cross.length / vis.length)}% cross topics` : "no links at this strength");
+    panel.append("div").attr("class", "hint").text("Papers sit on the ring, grouped by area, topic and subtopic. A line joins two papers with similar abstracts. Hover a paper, topic or bridge to follow its links; click a paper to open it.");
+  }
+  panel.append("div").attr("class", "eyebrow").style("margin-top", "10px").text(topic ? "Bridges from here" : "Strongest bridges between topics");
+  if (!pairs.length) panel.append("div").attr("class", "muted").text("None at this strength.");
+  const max = d3.max(pairs, p => p.n) || 1;
+  panel.selectAll(".b").data(pairs).join("div").attr("class", "hoverable b")
+    .on("mouseenter", (e, p) => focusPair(p.a, p.b)).on("mouseleave", clearFocus)
+    .call(r => {
+      const top = r.append("div").attr("class", "row").style("padding-bottom", 0);
+      top.append("span").attr("class", "grow name").text(p => `${p.a} ↔ ${p.b}`);
+      top.append("span").attr("class", "mono muted").text(p => p.n);
+      r.append("div").attr("class", "bar").style("width", p => (100 * p.n / max) + "%");
+    });
+}
+
+function showPaper(d, mine) {
+  const p = paperOf(d);
+  panel.html("");
+  panel.append("div").attr("class", "eyebrow").text(`${p.topic} › ${p.subtopic}`);
+  panel.append("h3").text(p.title);
+  panel.append("div").attr("class", "muted mono").text(`${pct(p.relevance)} relevant · ${p.isRead ? "read" : "unread"}${p.isFavorite ? " · ★" : ""}`);
+  const rows = mine.map(l => { const o = l.s === d ? l.t : l.s; return { o: paperOf(o), score: l.score, cross: l.cross }; }).sort((a, b) => b.score - a.score);
+  panel.append("div").attr("class", "eyebrow").style("margin-top", "12px").text(rows.length ? `Connected to ${rows.length}` : "No connections at this strength");
+  panel.selectAll(".n").data(rows.slice(0, 7)).join("div").attr("class", "row n")
+    .call(r => {
+      r.append("span").attr("class", "dot").style("background", x => color(x.o.area));
+      r.append("span").attr("class", "grow name").attr("title", x => x.o.title).text(x => trunc(x.o.title, 44));
+      r.filter(x => x.cross).append("span").attr("class", "tag").text(x => x.o.topic);
+      r.append("span").attr("class", "mono muted").text(x => x.score.toFixed(2));
+    });
+}
+
+// ---- controls ----
+document.getElementById("strength").addEventListener("input", e => { minScore = +e.target.value; applyLinkVisibility(); });
+document.getElementById("cross").addEventListener("change", e => { crossOnly = e.target.checked; applyLinkVisibility(); });
+let resizeTimer; addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(draw, 120); });
+</script>
+</body>
+</html>
