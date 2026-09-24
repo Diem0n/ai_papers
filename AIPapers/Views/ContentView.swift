@@ -35,22 +35,32 @@ private struct SidebarRow: View {
 private struct SectionSwitcher: ViewModifier {
     let isActive: Bool
     let sections: [AppSection]
+    var compact = false
     @Binding var selection: AppSection?
+
+    private var picker: some View {
+        Picker("Section", selection: Binding(
+            get: { selection ?? sections.first ?? .dashboard },
+            set: { selection = $0 }
+        )) {
+            ForEach(sections) { section in
+                Label(section.rawValue, systemImage: section.systemImage)
+                    .help(section.rawValue)
+                    .tag(section)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
 
     func body(content: Content) -> some View {
         content.toolbar {
             if isActive {
                 ToolbarItem(placement: .principal) {
-                    Picker("Section", selection: Binding(
-                        get: { selection ?? sections.first ?? .dashboard },
-                        set: { selection = $0 }
-                    )) {
-                        ForEach(sections) { section in
-                            Label(section.rawValue, systemImage: section.systemImage).tag(section)
-                        }
+                    if compact {
+                        picker.labelStyle(.iconOnly)
+                    } else {
+                        picker.labelStyle(.titleAndIcon)
                     }
-                    .pickerStyle(.segmented)
-                    .labelStyle(.titleAndIcon)
                 }
             }
         }
@@ -138,7 +148,6 @@ struct ContentView: View {
             }
         }
         .onAppear(perform: syncSidebarVisibility)
-        .onChange(of: selection, updateColumnVisibility)
         .onChange(of: sidebarVisibleByDefault) { syncSidebarVisibility() }
         .onChange(of: hiddenSectionsCSV) { ensureSelectionVisible() }
         .onChange(of: router.pendingPaperID, handlePendingPaperID)
@@ -166,14 +175,7 @@ struct ContentView: View {
                 fullWidthPage
             }
         } else {
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                sidebarColumn
-            } content: {
-                contentColumn
-            } detail: {
-                detailColumn
-            }
-            .navigationSplitViewStyle(.balanced)
+            listDetailLayout
         }
     }
 
@@ -184,16 +186,21 @@ struct ContentView: View {
                 fullWidthPage
             }
         } else {
-            // The section switcher is attached to the split view itself, i.e. to
-            // the whole window's toolbar — on the list column it had only that
-            // column's width to fit in and collapsed into an overflow menu.
-            NavigationSplitView {
-                contentColumn
-            } detail: {
-                detailColumn
-            }
-            .modifier(SectionSwitcher(isActive: true, sections: visibleSections, selection: $selection))
+            listDetailLayout
         }
+    }
+
+    /// Archive and Graph: list + paper detail with no sidebar, in either
+    /// navigation style. The section switcher is attached to the split view
+    /// itself, i.e. the whole window's toolbar — on the list column it had only
+    /// that column's width to fit in and collapsed into an overflow menu.
+    private var listDetailLayout: some View {
+        NavigationSplitView {
+            contentColumn
+        } detail: {
+            detailColumn
+        }
+        .modifier(SectionSwitcher(isActive: true, sections: visibleSections, compact: true, selection: $selection))
     }
 
     private var sidebarColumn: some View {
@@ -287,16 +294,6 @@ struct ContentView: View {
 
     private func syncSidebarVisibility() {
         columnVisibility = sidebarVisibleByDefault ? .all : .automatic
-    }
-
-    private func updateColumnVisibility(from oldValue: AppSection?, to newValue: AppSection?) {
-        // With the sidebar set to visible it stays visible everywhere. Only
-        // when it isn't pinned does the Graph reclaim its width for the canvas.
-        if sidebarVisibleByDefault {
-            columnVisibility = .all
-        } else {
-            columnVisibility = newValue == .graph ? .doubleColumn : .automatic
-        }
     }
 
     private func ensureSelectionVisible() {
