@@ -51,12 +51,15 @@ nonisolated final class GeminiService {
     }
 
     func summarize(title: String, abstractText: String) async throws -> OllamaSummary {
-        var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models/\(Self.model):generateContent")!
-        components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(Self.model):generateContent")!
 
-        var request = URLRequest(url: components.url!)
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Header, not a ?key= query param — a query param ends up in
+        // NSURLErrorFailingURLStringErrorKey on failure and gets written to
+        // the system log in plain text. Header keeps it out of logs entirely.
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.timeoutInterval = 60
         request.httpBody = try JSONEncoder().encode(GenerateContentRequest(
             contents: [.init(parts: [.init(text: OllamaService.summaryPrompt(title: title, abstractText: abstractText))])],
