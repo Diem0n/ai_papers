@@ -115,11 +115,19 @@ nonisolated final class OllamaService {
     }
 
     func summarize(title: String, abstractText: String) async throws -> OllamaSummary {
-        let raw = try await generate(prompt: Self.prompt(title: title, abstractText: abstractText))
-
-        guard let contentData = raw.data(using: .utf8),
-              let summary = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
-            throw OllamaServiceError.malformedContent(raw: raw)
+        let summary: OllamaSummary
+        // Cloud summaries are opt-in (Settings) and scoped to this one call —
+        // classification, stack fit, claims, plans, /explain and Ask always
+        // stay on the local model regardless of this setting.
+        if AppSettings.useCloudForSummaries, let gemini = GeminiService() {
+            summary = try await gemini.summarize(title: title, abstractText: abstractText)
+        } else {
+            let raw = try await generate(prompt: Self.summaryPrompt(title: title, abstractText: abstractText))
+            guard let contentData = raw.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
+                throw OllamaServiceError.malformedContent(raw: raw)
+            }
+            summary = decoded
         }
 
         // The model should not be trusted for canonical metadata: coerce
@@ -257,7 +265,8 @@ nonisolated final class OllamaService {
         return request
     }
 
-    private static func prompt(title: String, abstractText: String) -> String {
+    /// Shared with GeminiService — the summary prompt is identical regardless of which model answers it.
+    nonisolated static func summaryPrompt(title: String, abstractText: String) -> String {
         """
         You summarize AI research papers for a practicing AI engineer.
         Use only the information given below. Do not invent benchmark numbers,

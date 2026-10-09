@@ -19,6 +19,7 @@ nonisolated enum AppSettingsKeys {
     static let askModel = "askModel"
     static let includeHuggingFace = "includeHuggingFace"
     static let stackProfile = "stackProfile"
+    static let useCloudForSummaries = "useCloudForSummaries"
     static let onboardingDone = "onboardingDone"
 }
 
@@ -39,6 +40,12 @@ nonisolated enum AppSettings {
     /// Hugging Face daily papers alongside arXiv. On unless turned off.
     static var includeHuggingFace: Bool {
         UserDefaults.standard.object(forKey: AppSettingsKeys.includeHuggingFace) as? Bool ?? true
+    }
+
+    /// Opt-in cloud summaries (Gemini free tier). The key itself lives in
+    /// the Keychain, never here — this just flips the OllamaService.summarize branch.
+    static var useCloudForSummaries: Bool {
+        UserDefaults.standard.bool(forKey: AppSettingsKeys.useCloudForSummaries)
     }
 
     /// A free-text description of the reader's own system, for "does this apply to me".
