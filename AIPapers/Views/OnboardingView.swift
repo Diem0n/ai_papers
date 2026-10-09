@@ -34,7 +34,7 @@ struct OnboardingView: View {
                         .frame(height: 80)
                         .scrollContentBackground(.hidden)
                         .padding(6)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                        .surfaceCard(radius: 8)
                     Text("Models, serving, data, hardware, constraints — e.g. “RAG over support docs, pgvector, Llama 3.1 8B on vLLM, 800 ms p95”. Each paper gets a verdict: does it apply, what would change, how much work.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

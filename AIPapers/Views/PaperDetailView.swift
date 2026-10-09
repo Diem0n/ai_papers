@@ -162,7 +162,7 @@ struct PaperDetailView: View {
                 .scrollContentBackground(.hidden)
                 .padding(6)
                 .frame(minHeight: 90)
-                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+                .surfaceCard(radius: 8)
                 if (paper.notes ?? "").isEmpty {
                     Text("Notes — what's worth remembering, what to try…")
                         .foregroundStyle(.tertiary)

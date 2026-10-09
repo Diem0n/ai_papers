@@ -156,7 +156,8 @@ struct LabView: View {
                 }
             }
             .padding(12)
-            .background(selectedPaper?.id == paper.id ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+            .background(selectedPaper?.id == paper.id ? AnyShapeStyle(Color.accentColor.opacity(0.12)) : AnyShapeStyle(.clear), in: RoundedRectangle(cornerRadius: 8))
+                .surfaceCard(radius: 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -219,7 +220,7 @@ struct LabView: View {
                         }
                     }
                     .padding(14)
-                    .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+                    .surfaceCard(radius: 10)
                 }
                 Text("Values come from each paper's own abstract; papers rarely use identical setups, so treat cross-paper comparisons as leads to check, not a leaderboard.")
                     .font(.caption2)
@@ -306,7 +307,7 @@ struct LabView: View {
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(12)
-                                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+                                        .surfaceCard(radius: 8)
                                         .contentShape(Rectangle())
                                     }
                                     .buttonStyle(.plain)

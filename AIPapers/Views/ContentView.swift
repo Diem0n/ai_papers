@@ -316,7 +316,7 @@ struct BannerView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background)
+        .windowWash()
         .overlay(Rectangle().frame(height: 1).foregroundStyle(.primary), alignment: .bottom)
     }
 }

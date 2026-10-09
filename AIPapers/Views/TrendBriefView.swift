@@ -448,7 +448,7 @@ struct TrendBriefView: View {
 
 private extension View {
     func card() -> some View {
-        background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+        surfaceCard()
             .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.quaternary))
     }
 }

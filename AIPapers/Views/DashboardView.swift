@@ -697,7 +697,6 @@ private struct BentoCard<Content: View>: View {
 
 private extension View {
     func bentoBackground() -> some View {
-        background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.quaternary))
+        surfaceCard()
     }
 }
