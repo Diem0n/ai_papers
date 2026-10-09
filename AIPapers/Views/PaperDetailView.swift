@@ -188,7 +188,7 @@ struct PaperDetailView: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text(appActivity.failedSummaryPaperIDs.contains(paper.id) ? "Couldn't generate a summary. Make sure Ollama is running." : "No summary yet.")
+                Text(appActivity.summaryErrors[paper.id] ?? "No summary yet.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Button("Generate Summary") {

@@ -182,8 +182,10 @@ final class PaperService {
     }
 
     /// Summarizes a single paper on demand — called when its detail view is opened.
+    /// Returns the failure message on error, nil on success — callers that only
+    /// care about pass/fail can still just check `== nil`.
     @discardableResult
-    func summarize(_ paper: Paper) async -> Bool {
+    func summarize(_ paper: Paper) async -> String? {
         do {
             let summary = try await ollamaService.summarize(title: paper.title, abstractText: paper.abstractText)
             paper.summary = summary.summary
@@ -202,13 +204,13 @@ final class PaperService {
             )
             try? repository.save()
             WidgetCenter.shared.reloadTimelines(ofKind: "AIPapersWidget")
-            return true
-        } catch let error as OllamaServiceError {
-            logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(error.debugDescription, privacy: .public)")
-            return false
+            return nil
+        } catch let error as LocalizedError {
+            logger.error("Summarize failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
+            return error.errorDescription ?? "Couldn't generate a summary."
         } catch {
-            logger.error("Ollama summarize failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
-            return false
+            logger.error("Summarize failed for \(paper.id, privacy: .public): \(String(describing: error), privacy: .public)")
+            return "Couldn't generate a summary."
         }
     }
 

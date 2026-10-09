@@ -38,6 +38,9 @@ final class AppActivity: ObservableObject {
     /// to "not generating" while the call is still actually running.
     @Published var summarizingPaperIDs: Set<String> = []
     @Published var failedSummaryPaperIDs: Set<String> = []
+    /// The real reason the last attempt for this paper failed — Ollama down,
+    /// cloud key missing, rate limited, whatever LocalizedError.errorDescription said.
+    @Published var summaryErrors: [String: String] = [:]
 
     private var hasAutoRefreshed = false
     private var isWritingBrief = false
@@ -225,11 +228,12 @@ final class AppActivity: ObservableObject {
         guard !summarizingPaperIDs.contains(paper.id) else { return }
         summarizingPaperIDs.insert(paper.id)
         failedSummaryPaperIDs.remove(paper.id)
+        summaryErrors.removeValue(forKey: paper.id)
         Task {
             let service = self.makeService()
-            let success = await service.summarize(paper)
-            if !success {
+            if let message = await service.summarize(paper) {
                 self.failedSummaryPaperIDs.insert(paper.id)
+                self.summaryErrors[paper.id] = message
             }
             self.summarizingPaperIDs.remove(paper.id)
         }
