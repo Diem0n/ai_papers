@@ -115,19 +115,10 @@ nonisolated final class OllamaService {
     }
 
     func summarize(title: String, abstractText: String) async throws -> OllamaSummary {
-        let summary: OllamaSummary
-        // Cloud summaries are opt-in (Settings) and scoped to this one call —
-        // classification, stack fit, claims, plans, /explain and Ask always
-        // stay on the local model regardless of this setting.
-        if AppSettings.useCloudForSummaries, let gemini = GeminiService() {
-            summary = try await gemini.summarize(title: title, abstractText: abstractText)
-        } else {
-            let raw = try await generate(prompt: Self.summaryPrompt(title: title, abstractText: abstractText))
-            guard let contentData = raw.data(using: .utf8),
-                  let decoded = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
-                throw OllamaServiceError.malformedContent(raw: raw)
-            }
-            summary = decoded
+        let raw = try await generate(prompt: Self.summaryPrompt(title: title, abstractText: abstractText), feature: .summaries)
+        guard let contentData = raw.data(using: .utf8),
+              let summary = try? JSONDecoder().decode(OllamaSummary.self, from: contentData) else {
+            throw OllamaServiceError.malformedContent(raw: raw)
         }
 
         // The model should not be trusted for canonical metadata: coerce
@@ -178,7 +169,7 @@ nonisolated final class OllamaService {
 
     /// Answers a question from the given papers only, with [n] citations.
     func answer(question: String, sources: [AskPromptSource]) async throws -> String {
-        let text = try await generate(prompt: Self.askPrompt(question: question, sources: sources), json: false)
+        let text = try await generate(prompt: Self.askPrompt(question: question, sources: sources), json: false, feature: .explainAsk)
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OllamaServiceError.invalidResponse }
         return trimmed
@@ -187,7 +178,7 @@ nonisolated final class OllamaService {
     /// Teaches one concept from general knowledge: core idea, analogy (and where
     /// it breaks), worked example, misconception, and a check question.
     func explain(concept: String) async throws -> String {
-        let text = try await generate(prompt: Self.explainPrompt(concept: concept), json: false)
+        let text = try await generate(prompt: Self.explainPrompt(concept: concept), json: false, feature: .explainAsk)
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw OllamaServiceError.invalidResponse }
         return trimmed
@@ -205,10 +196,18 @@ nonisolated final class OllamaService {
         return response.picks.map { (number: $0.n, why: $0.why) }
     }
 
-    /// Sends a prompt to /api/generate and returns the model's raw text.
-    /// `contextTokens` raises the model's context window for long inputs
-    /// (e.g. a paper's full text); nil keeps Ollama's default.
-    func generate(prompt: String, json: Bool = true, contextTokens: Int? = nil) async throws -> String {
+    /// Sends a prompt and returns the model's raw text. `contextTokens` raises
+    /// the local model's context window for long inputs (e.g. a paper's full
+    /// text); nil keeps Ollama's default — ignored for cloud calls.
+    ///
+    /// `feature` tags what this call is for; when it's eligible under the
+    /// reader's CloudScope and a cloud model is configured, it's answered
+    /// there instead of locally. nil (the default) means "never cloud" —
+    /// classification, the digest and picks stay local regardless of scope.
+    func generate(prompt: String, json: Bool = true, contextTokens: Int? = nil, feature: CloudFeature? = nil) async throws -> String {
+        if let feature, feature.isEligible(at: AppSettings.cloudScope), let cloud = OpenRouterService() {
+            return try await cloud.complete(prompt: prompt, json: json)
+        }
         let request = try makeRequest(prompt: prompt, json: json, contextTokens: contextTokens)
 
         let data: Data

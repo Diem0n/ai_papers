@@ -19,7 +19,8 @@ nonisolated enum AppSettingsKeys {
     static let askModel = "askModel"
     static let includeHuggingFace = "includeHuggingFace"
     static let stackProfile = "stackProfile"
-    static let useCloudForSummaries = "useCloudForSummaries"
+    static let cloudScope = "cloudScope"
+    static let cloudModel = "cloudModel"
     static let onboardingDone = "onboardingDone"
 }
 
@@ -42,10 +43,15 @@ nonisolated enum AppSettings {
         UserDefaults.standard.object(forKey: AppSettingsKeys.includeHuggingFace) as? Bool ?? true
     }
 
-    /// Opt-in cloud summaries (Gemini free tier). The key itself lives in
-    /// the Keychain, never here — this just flips the OllamaService.summarize branch.
-    static var useCloudForSummaries: Bool {
-        UserDefaults.standard.bool(forKey: AppSettingsKeys.useCloudForSummaries)
+    /// How much is allowed to leave the Mac. The OpenRouter key itself lives
+    /// in the Keychain, never here.
+    static var cloudScope: CloudScope {
+        UserDefaults.standard.string(forKey: AppSettingsKeys.cloudScope).flatMap(CloudScope.init(rawValue:)) ?? .local
+    }
+
+    /// The OpenRouter model id (e.g. "deepseek/deepseek-chat-v3.1:free").
+    static var cloudModel: String {
+        UserDefaults.standard.string(forKey: AppSettingsKeys.cloudModel) ?? ""
     }
 
     /// A free-text description of the reader's own system, for "does this apply to me".

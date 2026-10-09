@@ -112,3 +112,25 @@ final class ArxivParsingTests: XCTestCase {
         } catch {}
     }
 }
+
+final class CloudScopeTests: XCTestCase {
+    func testLocalNeverEligible() {
+        for feature: CloudFeature in [.summaries, .claims, .plan, .explainAsk, .stackFit] {
+            XCTAssertFalse(feature.isEligible(at: .local))
+        }
+    }
+
+    func testPapersScopeCoversContentOnly() {
+        XCTAssertTrue(CloudFeature.summaries.isEligible(at: .papers))
+        XCTAssertTrue(CloudFeature.claims.isEligible(at: .papers))
+        XCTAssertTrue(CloudFeature.plan.isEligible(at: .papers))
+        XCTAssertFalse(CloudFeature.explainAsk.isEligible(at: .papers))
+        XCTAssertFalse(CloudFeature.stackFit.isEligible(at: .papers))
+    }
+
+    func testEverythingScopeCoversAll() {
+        for feature: CloudFeature in [.summaries, .claims, .plan, .explainAsk, .stackFit] {
+            XCTAssertTrue(feature.isEligible(at: .everything))
+        }
+    }
+}

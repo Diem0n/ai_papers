@@ -17,9 +17,12 @@ struct SettingsView: View {
     @AppStorage(AppSettingsKeys.askModel) private var askModel = ""
     @AppStorage(AppSettingsKeys.includeHuggingFace) private var includeHuggingFace = true
     @AppStorage(AppSettingsKeys.stackProfile) private var stackProfile = ""
-    @AppStorage(AppSettingsKeys.useCloudForSummaries) private var useCloudForSummaries = false
-    @State private var geminiKeyField = KeychainService.get(account: GeminiService.keychainAccount) ?? ""
-    @State private var geminiKeySaved = KeychainService.get(account: GeminiService.keychainAccount) != nil
+    @AppStorage(AppSettingsKeys.cloudScope) private var cloudScopeRaw = CloudScope.local.rawValue
+    @AppStorage(AppSettingsKeys.cloudModel) private var cloudModel = ""
+    @State private var cloudKeyField = KeychainService.get(account: OpenRouterService.keychainAccount) ?? ""
+    @State private var cloudKeySaved = KeychainService.get(account: OpenRouterService.keychainAccount) != nil
+    @State private var freeModels: [String] = []
+    @State private var freeModelsError: String?
 
     @State private var availableModels: [String] = []
     @State private var modelListError: String?
@@ -89,30 +92,52 @@ struct SettingsView: View {
                     }
                 }
             }
-            Section("Cloud summaries (optional)") {
-                Toggle("Use a cloud model for per-paper summaries", isOn: $useCloudForSummaries)
-                    .disabled(!geminiKeySaved)
-                SecureField("Gemini API key", text: $geminiKeyField)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(saveGeminiKey)
-                HStack {
-                    Button("Save Key", action: saveGeminiKey)
-                        .disabled(geminiKeyField.trimmingCharacters(in: .whitespaces).isEmpty)
-                    if geminiKeySaved {
-                        Button("Remove Key", role: .destructive) {
-                            KeychainService.delete(account: GeminiService.keychainAccount)
-                            geminiKeyField = ""
-                            geminiKeySaved = false
-                            useCloudForSummaries = false
-                        }
+            Section("Cloud & privacy") {
+                Picker("Privacy", selection: $cloudScopeRaw) {
+                    ForEach(CloudScope.allCases) { scope in
+                        Text(scope.label).tag(scope.rawValue)
                     }
-                    Spacer()
-                    Link("Get a free key", destination: URL(string: "https://aistudio.google.com/apikey")!)
-                        .font(.caption)
                 }
-                Text("Only the per-paper summary call uses this — title and abstract are sent to Google's Gemini API (free tier, no card). Stack fit, claims, plans, /explain and Ask always stay on your local Ollama model. The key is kept in the Keychain, never in a file.")
+                Text((CloudScope(rawValue: cloudScopeRaw) ?? .local).detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                if cloudScopeRaw != CloudScope.local.rawValue {
+                    SecureField("OpenRouter API key", text: $cloudKeyField)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(saveCloudKey)
+                    HStack {
+                        Button("Save Key", action: saveCloudKey)
+                            .disabled(cloudKeyField.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if cloudKeySaved {
+                            Button("Remove Key", role: .destructive) {
+                                KeychainService.delete(account: OpenRouterService.keychainAccount)
+                                cloudKeyField = ""
+                                cloudKeySaved = false
+                                cloudScopeRaw = CloudScope.local.rawValue
+                            }
+                        }
+                        Spacer()
+                        Link("Get a free key", destination: URL(string: "https://openrouter.ai/keys")!)
+                            .font(.caption)
+                    }
+
+                    if freeModels.isEmpty {
+                        Text(freeModelsError ?? "Loading free models…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Cloud model", selection: $cloudModel) {
+                            Text("Choose one").tag("")
+                            ForEach(freeModels, id: \.self) { id in
+                                Text(id).tag(id)
+                            }
+                        }
+                    }
+                    Text("OpenRouter fronts hundreds of models (including free ones) behind one key, so you pick the model and how much reaches it. The key is kept in the Keychain, never in a file.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Section("Ask") {
                 Picker("Model for Ask, /explain and Lab", selection: $askModel) {
@@ -138,14 +163,23 @@ struct SettingsView: View {
         .frame(width: 460, height: 620)
         .task {
             await loadModels()
+            await loadFreeModels()
         }
     }
 
-    private func saveGeminiKey() {
-        let trimmed = geminiKeyField.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func saveCloudKey() {
+        let trimmed = cloudKeyField.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        KeychainService.set(trimmed, account: GeminiService.keychainAccount)
-        geminiKeySaved = true
+        KeychainService.set(trimmed, account: OpenRouterService.keychainAccount)
+        cloudKeySaved = true
+    }
+
+    private func loadFreeModels() async {
+        do {
+            freeModels = try await OpenRouterService.listFreeModels()
+        } catch {
+            freeModelsError = (error as? LocalizedError)?.errorDescription ?? "Couldn't load the model list."
+        }
     }
 
     private var hiddenSections: Set<AppSection> {
