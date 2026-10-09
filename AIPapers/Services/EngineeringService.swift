@@ -177,10 +177,11 @@ enum EngineeringService {
 
         let fullText = fullText(of: paper)
         let links = CodeLinkStore.shared.links[paper.id]
+        let stack = AppSettings.stackProfile
         let plan = try await generateValidated(
-            prompt: planPrompt(paper: paper, fullText: fullText, repo: links?.githubRepo, stack: AppSettings.stackProfile),
+            prompt: planPrompt(paper: paper, fullText: fullText, repo: links?.githubRepo, stack: stack),
             contextTokens: fullText == nil ? nil : 12_288,
-            feature: .plan
+            feature: planFeature(stackIsEmpty: stack.isEmpty)
         ) { parsePlan($0, usedFullText: fullText != nil) }
         store.update(paper.id) {
             $0.plan = plan
@@ -216,6 +217,13 @@ enum EngineeringService {
             body = String(body[..<references.lowerBound])
         }
         return String(body.prefix(limit))
+    }
+
+    /// The prompt carries the reader's stack description when there is one —
+    /// that makes the call as sensitive as stack fit, not plain paper content,
+    /// so it needs the stronger tier before it's allowed to reach the cloud.
+    nonisolated static func planFeature(stackIsEmpty: Bool) -> CloudFeature {
+        stackIsEmpty ? .plan : .stackFit
     }
 
     private static func planPrompt(paper: Paper, fullText: String?, repo: String?, stack: String) -> String {

@@ -134,3 +134,19 @@ final class CloudScopeTests: XCTestCase {
         }
     }
 }
+
+final class PlanPrivacyTests: XCTestCase {
+    /// Regression: a plan prompt with a stack description embedded in it must
+    /// require the stronger tier, or "Cloud for paper analysis" would leak the
+    /// reader's private stack text under the weaker "paper content" tier.
+    func testPlanWithStackRequiresStackFitTier() {
+        XCTAssertEqual(EngineeringService.planFeature(stackIsEmpty: false), .stackFit)
+        XCTAssertFalse(EngineeringService.planFeature(stackIsEmpty: false).isEligible(at: .papers))
+        XCTAssertTrue(EngineeringService.planFeature(stackIsEmpty: false).isEligible(at: .everything))
+    }
+
+    func testPlanWithoutStackIsOrdinaryPaperContent() {
+        XCTAssertEqual(EngineeringService.planFeature(stackIsEmpty: true), .plan)
+        XCTAssertTrue(EngineeringService.planFeature(stackIsEmpty: true).isEligible(at: .papers))
+    }
+}
