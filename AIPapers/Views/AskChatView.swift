@@ -133,7 +133,7 @@ struct AskChatView: View {
                         if turn.isExplain {
                             ExplanationView(text: answer)
                         } else {
-                            Text(answer)
+                            Text(turn.rendered ?? AttributedString(answer))
                                 .lineSpacing(3)
                                 .textSelection(.enabled)
                                 .fixedSize(horizontal: false, vertical: true)

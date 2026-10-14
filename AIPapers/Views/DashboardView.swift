@@ -580,7 +580,7 @@ struct DashboardView: View {
                         if turn.isExplain {
                             ExplanationView(text: answer)
                         } else {
-                            Text(answer)
+                            Text(turn.rendered ?? AttributedString(answer))
                                 .font(.callout)
                                 .lineSpacing(3)
                                 .textSelection(.enabled)

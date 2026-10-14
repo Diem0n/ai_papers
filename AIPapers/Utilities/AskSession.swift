@@ -24,6 +24,19 @@ final class AskSession: ObservableObject {
         var error: String?
         var isWorking = true
 
+        /// The answer with the model's inline markdown rendered: **bold** and
+        /// *italic* styled, "* " / "- " list markers turned into bullets.
+        var rendered: AttributedString? {
+            guard let answer else { return nil }
+            let bulleted = answer.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+                let trimmed = line.drop { $0 == " " }
+                for marker in ["* ", "- "] where trimmed.hasPrefix(marker) { return "• " + trimmed.dropFirst(2) }
+                return String(line)
+            }.joined(separator: "\n")
+            return (try? AttributedString(markdown: bulleted, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+                ?? AttributedString(bulleted)
+        }
+
         /// The answer as plain text for the pasteboard (no markdown markers).
         var copyText: String? {
             answer?.replacingOccurrences(of: "**", with: "")
