@@ -166,3 +166,20 @@ final class AnswerRenderingTests: XCTestCase {
         XCTAssertTrue(rendered.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
     }
 }
+
+final class DigestLabelTests: XCTestCase {
+    private func theme(_ id: Int, _ topic: String, _ sub: String?, _ keywords: [String]) -> DigestTheme {
+        DigestTheme(id: id, topic: topic, subtopic: sub, keywords: keywords, papers: [], priorCount: nil)
+    }
+
+    func testDuplicateLabelsGetDistinctSubtitles() {
+        let labels = DigestService.disambiguated([
+            theme(0, "Agents", nil, ["long horizon"]),
+            theme(1, "Training", nil, ["large scale"]),
+            theme(2, "Training", nil, ["parameter"]),
+            theme(3, "Training", nil, []),
+        ]).map(\.label)
+        XCTAssertEqual(labels, ["Agents", "Training", "Training · parameter", "Training · 4"])
+        XCTAssertEqual(Set(labels).count, labels.count)
+    }
+}

@@ -99,7 +99,7 @@ enum DigestService {
         }
 
         return Digest(
-            themes: themes,
+            themes: disambiguated(themes),
             risingTerms: risingTerms(recent: recent, older: older, docTerms: docTerms),
             wildcards: wildcards(recent: recent, vectors: vectors),
             readingPlan: readingPlan(themes: themes, recent: recent),
@@ -108,6 +108,22 @@ enum DigestService {
             paperCount: recent.count,
             signature: signature(of: recent.map(\.id))
         )
+    }
+
+    /// Two clusters can land on the same topic/subtopic ("Training", "Training").
+    /// Later duplicates get their most distinctive keyword as the subtitle
+    /// ("Training · large scale"), falling back to a number if there is none.
+    static func disambiguated(_ themes: [DigestTheme]) -> [DigestTheme] {
+        var seen = Set<String>()
+        return themes.map { theme in
+            guard seen.contains(theme.label) else { seen.insert(theme.label); return theme }
+            let extra = theme.keywords.first { !seen.contains("\(theme.label) · \($0)") }
+            let subtitle = [theme.subtopic, extra ?? "\(theme.id + 1)"].compactMap { $0 }.joined(separator: " · ")
+            let renamed = DigestTheme(id: theme.id, topic: theme.topic, subtopic: subtitle,
+                                      keywords: theme.keywords, papers: theme.papers, priorCount: theme.priorCount)
+            seen.insert(renamed.label)
+            return renamed
+        }
     }
 
     // MARK: Clustering
