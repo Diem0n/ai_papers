@@ -57,6 +57,8 @@ nonisolated struct OllamaClassification: Sendable, Equatable {
 
 enum OllamaServiceError: LocalizedError {
     case connectionFailed(underlying: Error)
+    /// Ollama answers but couldn't take the request (usually swapping models in memory).
+    case busy
     case serverError(statusCode: Int)
     case invalidResponse
     case malformedContent(raw: String)
@@ -65,6 +67,8 @@ enum OllamaServiceError: LocalizedError {
         switch self {
         case .connectionFailed:
             return "Ollama isn't running. Start Ollama and try again."
+        case .busy:
+            return "Ollama is busy loading a model. Try again in a moment."
         case .serverError(let statusCode):
             return "Ollama returned an error (HTTP \(statusCode))."
         case .invalidResponse:
@@ -79,6 +83,8 @@ enum OllamaServiceError: LocalizedError {
         switch self {
         case .connectionFailed(let underlying):
             return "connectionFailed: \(underlying)"
+        case .busy:
+            return "busy"
         case .serverError(let statusCode):
             return "serverError: HTTP \(statusCode)"
         case .invalidResponse:
@@ -210,32 +216,46 @@ nonisolated final class OllamaService {
         }
         let request = try makeRequest(prompt: prompt, json: json, contextTokens: contextTokens)
 
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            // ponytail: single retry on a fresh connection — URLSession's keep-alive
-            // connection to local Ollama occasionally gets closed between requests;
-            // a real outage still fails on the retry.
+        // Two attempts. Ollama returns HTTP 500 while it swaps models in and
+        // out of memory (embeddings and text share it), and URLSession's
+        // keep-alive connection occasionally drops between requests; both
+        // clear within seconds. A real outage still fails twice.
+        var data = Data()
+        var lastError: Error?
+        for attempt in 1...2 {
+            if attempt == 2 { try? await Task.sleep(for: .seconds(2)) }
             do {
-                (data, response) = try await session.data(for: request)
+                let (body, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else { throw OllamaServiceError.invalidResponse }
+                if http.statusCode >= 500 { lastError = OllamaServiceError.serverError(statusCode: http.statusCode); continue }
+                guard (200..<300).contains(http.statusCode) else { throw OllamaServiceError.serverError(statusCode: http.statusCode) }
+                data = body
+                lastError = nil
+                break
+            } catch let error as OllamaServiceError {
+                throw error
             } catch {
-                throw OllamaServiceError.connectionFailed(underlying: error)
+                lastError = error
             }
         }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw OllamaServiceError.invalidResponse
-        }
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            throw OllamaServiceError.serverError(statusCode: httpResponse.statusCode)
+        if let lastError {
+            if lastError is OllamaServiceError { throw OllamaServiceError.busy }
+            // Only claim "not running" if it really doesn't answer.
+            throw await isReachable() ? OllamaServiceError.busy : OllamaServiceError.connectionFailed(underlying: lastError)
         }
 
         guard let generateResponse = try? JSONDecoder().decode(GenerateResponse.self, from: data) else {
             throw OllamaServiceError.invalidResponse
         }
         return generateResponse.response
+    }
+
+    /// Whether Ollama answers at all — separates "not running" from "busy".
+    private func isReachable() async -> Bool {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/tags"))
+        request.timeoutInterval = 2
+        guard let (_, response) = try? await session.data(for: request) else { return false }
+        return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
     private static func canonicalTopics(from rawTopics: [String]) -> [String] {

@@ -190,6 +190,7 @@ Schema changes to `Paper` need a matching `ALTER TABLE` in `StoreMigration.addCo
 | A plan needs at least two steps; long fields are capped | `EngineeringService.parsePlan` |
 | LaTeX backslashes inside JSON are escaped before decoding | `EngineeringService.jsonData` |
 | Broken JSON gets one automatic retry, then a visible error | `EngineeringService.generateValidated` |
+| Ollama HTTP 5xx (model swapping) or a dropped connection gets one retry after 2 s; "isn't running" is only reported if Ollama doesn't answer at all, otherwise "busy" | `OllamaService.generate`, `isReachable` |
 | Ranking is deterministic; the model's relevance estimate is at most 20% of the score | `RelevanceService.score` |
 
 ---
