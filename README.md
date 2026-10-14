@@ -201,6 +201,10 @@ docs/              Feature guide, architecture, screenshots
 - The question router is a small classifier and occasionally picks the wrong mode for unusual phrasing. `/ask` and `/explain` override it.
 - Small local models can still get technical details wrong in explanations. Treat them as intuition, and check specifics.
 
+## Licence
+
+[MIT](LICENSE).
+
 ## Data sources and licences
 
 - Paper metadata and PDFs: [arXiv](https://arxiv.org). Thank you to arXiv for use of its open access interoperability. PDFs are cached only on your Mac.
