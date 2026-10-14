@@ -150,3 +150,19 @@ final class PlanPrivacyTests: XCTestCase {
         XCTAssertTrue(EngineeringService.planFeature(stackIsEmpty: true).isEligible(at: .papers))
     }
 }
+
+final class AnswerRenderingTests: XCTestCase {
+    /// Regression: model output comes from untrusted abstracts, so markdown
+    /// links must render as plain text, never as clickable links.
+    func testLinksAreStripped() {
+        let rendered = AskSession.renderAnswer("See [this paper](https://evil.example/phish) and [local](file:///etc/passwd).")
+        XCTAssertTrue(rendered.runs.allSatisfy { $0.link == nil })
+        XCTAssertEqual(String(rendered.characters), "See this paper and local.")
+    }
+
+    func testBoldAndBulletsStillRender() {
+        let rendered = AskSession.renderAnswer("* **[1]** introduces a benchmark")
+        XCTAssertEqual(String(rendered.characters), "• [1] introduces a benchmark")
+        XCTAssertTrue(rendered.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true })
+    }
+}

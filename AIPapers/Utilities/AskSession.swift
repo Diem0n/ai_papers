@@ -27,20 +27,31 @@ final class AskSession: ObservableObject {
         /// The answer with the model's inline markdown rendered: **bold** and
         /// *italic* styled, "* " / "- " list markers turned into bullets.
         var rendered: AttributedString? {
-            guard let answer else { return nil }
-            let bulleted = answer.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
-                let trimmed = line.drop { $0 == " " }
-                for marker in ["* ", "- "] where trimmed.hasPrefix(marker) { return "• " + trimmed.dropFirst(2) }
-                return String(line)
-            }.joined(separator: "\n")
-            return (try? AttributedString(markdown: bulleted, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-                ?? AttributedString(bulleted)
+            answer.map(AskSession.renderAnswer)
         }
 
         /// The answer as plain text for the pasteboard (no markdown markers).
         var copyText: String? {
             answer?.replacingOccurrences(of: "**", with: "")
         }
+    }
+
+    /// Model text to display: inline markdown styled, list markers as bullets,
+    /// and every link stripped. Answers are built from untrusted paper
+    /// abstracts, so a prompt-injected `[click](https://…)` or `file://` link
+    /// must never become clickable; citations are separate, app-built buttons.
+    nonisolated static func renderAnswer(_ text: String) -> AttributedString {
+        let bulleted = text.split(separator: "\n", omittingEmptySubsequences: false).map { line -> String in
+            let trimmed = line.drop { $0 == " " }
+            for marker in ["* ", "- "] where trimmed.hasPrefix(marker) { return "• " + trimmed.dropFirst(2) }
+            return String(line)
+        }.joined(separator: "\n")
+        var result = (try? AttributedString(markdown: bulleted, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(bulleted)
+        for run in result.runs where run.link != nil {
+            result[run.range].link = nil
+        }
+        return result
     }
 
     @Published private(set) var turns: [Turn] = []
